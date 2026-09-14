@@ -1,0 +1,6 @@
+# Build output
+build/
+
+# Optional: OS and Editor junk
+.DS_Store
+.vscode/
