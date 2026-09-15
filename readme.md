@@ -15,10 +15,8 @@ make rebuild
 ## Run in QEMU
 
 ```bash
-qemu-system-x86_64 -cpu host -drive format=raw,file=build/disk.img
+qemu-system-x86_64 -cpu Haswell -drive format=raw,file=build/disk.img
 ```
-
-*(`-cpu host` is recommended here so AVX instructions pass through to the VM without `#UD` exceptions).*
 
 ## Write to USB Stick
 

@@ -37,6 +37,9 @@ _start:
     mov ss, ax
     mov esp, stack_top
 
+    ; 16-byte stack alignment check/force for SSE safety
+    and esp, -16
+
     ; Clear VGA text mode screen (80x25 cells)
     cld
     mov edi, 0xB8000
@@ -57,19 +60,65 @@ _start:
     dec ecx
     jnz .print_loop
 
+    ; Initialize FPU and SSE / FXSAVE support
+    call init_fpu_sse
+
     ; Initialize IDT, PIC remap, and PIT
     call init_idt
     call remap_pic
     call init_pit
 
-    sti                         ; Enable hardware interrupts
+    sti                            ; Enable hardware interrupts
 
-    call kmain                  ; Jump to C kernel entry point
+    call kmain                     ; Jump to C kernel entry point
 
 .hang:
     cli
     hlt
     jmp .hang
+
+; --- FPU & SSE Initialization (32-bit x86) ---
+init_fpu_sse:
+    push eax
+    push ecx
+    push edx
+
+    ; CR0: clear EM (bit 2), set MP (bit 1), set NE (bit 5)
+    mov eax, cr0
+    and eax, ~(1 << 2)
+    or  eax,  (1 << 1) | (1 << 5)
+    mov cr0, eax
+
+    ; CPUID check: Prüfe ob AVX (ECX Bit 28) unterstützt wird
+    mov eax, 1
+    cpuid
+    test ecx, (1 << 28)
+    jz .no_avx
+
+    ; CR4: set OSFXSR (bit 9), OSXMMEXCPT (bit 10), OSXSAVE (bit 18)
+    mov eax, cr4
+    or  eax,  (1 << 9) | (1 << 10) | (1 << 18)
+    mov cr4, eax
+
+    ; XCR0 konfigurieren: Bits 0/1 (x87/SSE) und Bit 2 (YMM) freigeben (0x7)
+    xor ecx, ecx
+    xgetbv
+    or eax, 0x07
+    xsetbv
+    jmp .fpu_done
+
+.no_avx:
+    ; Fallback: nur SSE/FXSR (ohne AVX/YMM)
+    mov eax, cr4
+    or  eax,  (1 << 9) | (1 << 10)
+    mov cr4, eax
+
+.fpu_done:
+    fninit
+    pop edx
+    pop ecx
+    pop eax
+    ret
 
 ; --- IDT Setup ---
 init_idt:
@@ -87,9 +136,9 @@ init_idt:
     mov edx, eax
     shr edx, 16
     shl edx, 16
-    or edx, 0x00008E00          ; Present, ring 0, 32-bit interrupt gate
+    or edx, 0x00008E00            ; Present, ring 0, 32-bit interrupt gate
 
-    mov bx, 0x08                ; Code selector offset
+    mov bx, 0x08                    ; Code selector offset
     shl ebx, 16
     mov bx, ax
 
@@ -130,9 +179,9 @@ remap_pic:
     out 0x20, al
     out 0xA0, al
 
-    mov al, 0x20                ; Master offset
+    mov al, 0x20                    ; Master offset
     out 0x21, al
-    mov al, 0x28                ; Slave offset
+    mov al, 0x28                    ; Slave offset
     out 0xA1, al
 
     mov al, 0x04
@@ -158,7 +207,7 @@ init_pit:
     push ax
     mov al, 0x36
     out 0x43, al
-    mov ax, 11932               ; 1193180 Hz / 100 Hz = 11932 (0x2E9C)
+    mov ax, 11932                   ; 1193180 Hz / 100 Hz = 11932 (0x2E9C)
     out 0x40, al
     mov al, ah
     out 0x40, al
@@ -168,7 +217,7 @@ init_pit:
 ; --- IRQ0 Timer Handler ---
 timer_handler:
     pushad
-    inc dword [ticks]           ; Increment tick counter in memory
+    inc dword [ticks]               ; Increment tick counter in memory
 
     ; Send End-Of-Interrupt (EOI) to Master PIC
     mov al, 0x20

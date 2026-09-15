@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include "tests.h"
 
 // Software 64-bit division fallback for freestanding binaries
 uint64_t __udivdi3(uint64_t n, uint64_t d) {
@@ -128,478 +129,6 @@ typedef struct {
     BenchBody body;
 } BenchmarkItem;
 
-// 64x unrolled instruction bodies
-static void body_nop(uint32_t loops) {
-    __asm__ volatile (
-        "1:\n\t"
-        "nop\n\t" "nop\n\t" "nop\n\t" "nop\n\t" "nop\n\t" "nop\n\t" "nop\n\t" "nop\n\t"
-        "nop\n\t" "nop\n\t" "nop\n\t" "nop\n\t" "nop\n\t" "nop\n\t" "nop\n\t" "nop\n\t"
-        "nop\n\t" "nop\n\t" "nop\n\t" "nop\n\t" "nop\n\t" "nop\n\t" "nop\n\t" "nop\n\t"
-        "nop\n\t" "nop\n\t" "nop\n\t" "nop\n\t" "nop\n\t" "nop\n\t" "nop\n\t" "nop\n\t"
-        "nop\n\t" "nop\n\t" "nop\n\t" "nop\n\t" "nop\n\t" "nop\n\t" "nop\n\t" "nop\n\t"
-        "nop\n\t" "nop\n\t" "nop\n\t" "nop\n\t" "nop\n\t" "nop\n\t" "nop\n\t" "nop\n\t"
-        "nop\n\t" "nop\n\t" "nop\n\t" "nop\n\t" "nop\n\t" "nop\n\t" "nop\n\t" "nop\n\t"
-        "nop\n\t" "nop\n\t" "nop\n\t" "nop\n\t" "nop\n\t" "nop\n\t" "nop\n\t" "nop\n\t"
-        "decl %0\n\t"
-        "jnz 1b"
-        : "+r"(loops) : : "cc"
-    );
-}
-
-static void body_add(uint32_t loops) {
-    __asm__ volatile (
-        // Initialize registers to clear state
-        "xor %%eax, %%eax\n\t"
-        "xor %%ebx, %%ebx\n\t"
-        "xor %%ecx, %%ecx\n\t"
-        "xor %%edx, %%edx\n\t"
-        "1:\n\t"
-        // 4 independent register chains interleaved 16 times (= 64 total add instructions)
-        "add $1, %%eax\n\t" "add $1, %%ebx\n\t" "add $1, %%ecx\n\t" "add $1, %%edx\n\t"
-        "add $1, %%eax\n\t" "add $1, %%ebx\n\t" "add $1, %%ecx\n\t" "add $1, %%edx\n\t"
-        "add $1, %%eax\n\t" "add $1, %%ebx\n\t" "add $1, %%ecx\n\t" "add $1, %%edx\n\t"
-        "add $1, %%eax\n\t" "add $1, %%ebx\n\t" "add $1, %%ecx\n\t" "add $1, %%edx\n\t"
-        "add $1, %%eax\n\t" "add $1, %%ebx\n\t" "add $1, %%ecx\n\t" "add $1, %%edx\n\t"
-        "add $1, %%eax\n\t" "add $1, %%ebx\n\t" "add $1, %%ecx\n\t" "add $1, %%edx\n\t"
-        "add $1, %%eax\n\t" "add $1, %%ebx\n\t" "add $1, %%ecx\n\t" "add $1, %%edx\n\t"
-        "add $1, %%eax\n\t" "add $1, %%ebx\n\t" "add $1, %%ecx\n\t" "add $1, %%edx\n\t"
-        "add $1, %%eax\n\t" "add $1, %%ebx\n\t" "add $1, %%ecx\n\t" "add $1, %%edx\n\t"
-        "add $1, %%eax\n\t" "add $1, %%ebx\n\t" "add $1, %%ecx\n\t" "add $1, %%edx\n\t"
-        "add $1, %%eax\n\t" "add $1, %%ebx\n\t" "add $1, %%ecx\n\t" "add $1, %%edx\n\t"
-        "add $1, %%eax\n\t" "add $1, %%ebx\n\t" "add $1, %%ecx\n\t" "add $1, %%edx\n\t"
-        "add $1, %%eax\n\t" "add $1, %%ebx\n\t" "add $1, %%ecx\n\t" "add $1, %%edx\n\t"
-        "add $1, %%eax\n\t" "add $1, %%ebx\n\t" "add $1, %%ecx\n\t" "add $1, %%edx\n\t"
-        "add $1, %%eax\n\t" "add $1, %%ebx\n\t" "add $1, %%ecx\n\t" "add $1, %%edx\n\t"
-        "add $1, %%eax\n\t" "add $1, %%ebx\n\t" "add $1, %%ecx\n\t" "add $1, %%edx\n\t"
-        "decl %0\n\t"
-        "jnz 1b"
-        : "+r"(loops)
-        :
-        : "eax", "ebx", "ecx", "edx", "cc"
-    );
-}
-
-static void body_sub(uint32_t loops) {
-    __asm__ volatile (
-        // Initialize registers to clear state
-        "xor %%eax, %%eax\n\t"
-        "xor %%ebx, %%ebx\n\t"
-        "xor %%ecx, %%ecx\n\t"
-        "xor %%edx, %%edx\n\t"
-        "1:\n\t"
-        // 4 independent register chains interleaved 16 times (= 64 total sub instructions)
-        "sub $1, %%eax\n\t" "sub $1, %%ebx\n\t" "sub $1, %%ecx\n\t" "sub $1, %%edx\n\t"
-        "sub $1, %%eax\n\t" "sub $1, %%ebx\n\t" "sub $1, %%ecx\n\t" "sub $1, %%edx\n\t"
-        "sub $1, %%eax\n\t" "sub $1, %%ebx\n\t" "sub $1, %%ecx\n\t" "sub $1, %%edx\n\t"
-        "sub $1, %%eax\n\t" "sub $1, %%ebx\n\t" "sub $1, %%ecx\n\t" "sub $1, %%edx\n\t"
-        "sub $1, %%eax\n\t" "sub $1, %%ebx\n\t" "sub $1, %%ecx\n\t" "sub $1, %%edx\n\t"
-        "sub $1, %%eax\n\t" "sub $1, %%ebx\n\t" "sub $1, %%ecx\n\t" "sub $1, %%edx\n\t"
-        "sub $1, %%eax\n\t" "sub $1, %%ebx\n\t" "sub $1, %%ecx\n\t" "sub $1, %%edx\n\t"
-        "sub $1, %%eax\n\t" "sub $1, %%ebx\n\t" "sub $1, %%ecx\n\t" "sub $1, %%edx\n\t"
-        "sub $1, %%eax\n\t" "sub $1, %%ebx\n\t" "sub $1, %%ecx\n\t" "sub $1, %%edx\n\t"
-        "sub $1, %%eax\n\t" "sub $1, %%ebx\n\t" "sub $1, %%ecx\n\t" "sub $1, %%edx\n\t"
-        "sub $1, %%eax\n\t" "sub $1, %%ebx\n\t" "sub $1, %%ecx\n\t" "sub $1, %%edx\n\t"
-        "sub $1, %%eax\n\t" "sub $1, %%ebx\n\t" "sub $1, %%ecx\n\t" "sub $1, %%edx\n\t"
-        "sub $1, %%eax\n\t" "sub $1, %%ebx\n\t" "sub $1, %%ecx\n\t" "sub $1, %%edx\n\t"
-        "sub $1, %%eax\n\t" "sub $1, %%ebx\n\t" "sub $1, %%ecx\n\t" "sub $1, %%edx\n\t"
-        "sub $1, %%eax\n\t" "sub $1, %%ebx\n\t" "sub $1, %%ecx\n\t" "sub $1, %%edx\n\t"
-        "sub $1, %%eax\n\t" "sub $1, %%ebx\n\t" "sub $1, %%ecx\n\t" "sub $1, %%edx\n\t"
-        "decl %0\n\t"
-        "jnz 1b"
-        : "+r"(loops)
-        :
-        : "eax", "ebx", "ecx", "edx", "cc"
-    );
-}
-
-static void body_inc(uint32_t loops) {
-    __asm__ volatile (
-        // Initialize registers to clear state
-        "xor %%eax, %%eax\n\t"
-        "xor %%ebx, %%ebx\n\t"
-        "xor %%ecx, %%ecx\n\t"
-        "xor %%edx, %%edx\n\t"
-        "1:\n\t"
-        // 4 independent register chains interleaved 16 times (= 64 total inc instructions)
-        "inc %%eax\n\t" "inc %%ebx\n\t" "inc %%ecx\n\t" "inc %%edx\n\t"
-        "inc %%eax\n\t" "inc %%ebx\n\t" "inc %%ecx\n\t" "inc %%edx\n\t"
-        "inc %%eax\n\t" "inc %%ebx\n\t" "inc %%ecx\n\t" "inc %%edx\n\t"
-        "inc %%eax\n\t" "inc %%ebx\n\t" "inc %%ecx\n\t" "inc %%edx\n\t"
-        "inc %%eax\n\t" "inc %%ebx\n\t" "inc %%ecx\n\t" "inc %%edx\n\t"
-        "inc %%eax\n\t" "inc %%ebx\n\t" "inc %%ecx\n\t" "inc %%edx\n\t"
-        "inc %%eax\n\t" "inc %%ebx\n\t" "inc %%ecx\n\t" "inc %%edx\n\t"
-        "inc %%eax\n\t" "inc %%ebx\n\t" "inc %%ecx\n\t" "inc %%edx\n\t"
-        "inc %%eax\n\t" "inc %%ebx\n\t" "inc %%ecx\n\t" "inc %%edx\n\t"
-        "inc %%eax\n\t" "inc %%ebx\n\t" "inc %%ecx\n\t" "inc %%edx\n\t"
-        "inc %%eax\n\t" "inc %%ebx\n\t" "inc %%ecx\n\t" "inc %%edx\n\t"
-        "inc %%eax\n\t" "inc %%ebx\n\t" "inc %%ecx\n\t" "inc %%edx\n\t"
-        "inc %%eax\n\t" "inc %%ebx\n\t" "inc %%ecx\n\t" "inc %%edx\n\t"
-        "inc %%eax\n\t" "inc %%ebx\n\t" "inc %%ecx\n\t" "inc %%edx\n\t"
-        "inc %%eax\n\t" "inc %%ebx\n\t" "inc %%ecx\n\t" "inc %%edx\n\t"
-        "inc %%eax\n\t" "inc %%ebx\n\t" "inc %%ecx\n\t" "inc %%edx\n\t"
-        "decl %0\n\t"
-        "jnz 1b"
-        : "+r"(loops)
-        :
-        : "eax", "ebx", "ecx", "edx", "cc"
-    );
-}
-
-static void body_dec(uint32_t loops) {
-    __asm__ volatile (
-        // Initialize registers to clear state
-        "xor %%eax, %%eax\n\t"
-        "xor %%ebx, %%ebx\n\t"
-        "xor %%ecx, %%ecx\n\t"
-        "xor %%edx, %%edx\n\t"
-        "1:\n\t"
-        // 4 independent register chains interleaved 16 times (= 64 total dec instructions)
-        "dec %%eax\n\t" "dec %%ebx\n\t" "dec %%ecx\n\t" "dec %%edx\n\t"
-        "dec %%eax\n\t" "dec %%ebx\n\t" "dec %%ecx\n\t" "dec %%edx\n\t"
-        "dec %%eax\n\t" "dec %%ebx\n\t" "dec %%ecx\n\t" "dec %%edx\n\t"
-        "dec %%eax\n\t" "dec %%ebx\n\t" "dec %%ecx\n\t" "dec %%edx\n\t"
-        "dec %%eax\n\t" "dec %%ebx\n\t" "dec %%ecx\n\t" "dec %%edx\n\t"
-        "dec %%eax\n\t" "dec %%ebx\n\t" "dec %%ecx\n\t" "dec %%edx\n\t"
-        "dec %%eax\n\t" "dec %%ebx\n\t" "dec %%ecx\n\t" "dec %%edx\n\t"
-        "dec %%eax\n\t" "dec %%ebx\n\t" "dec %%ecx\n\t" "dec %%edx\n\t"
-        "dec %%eax\n\t" "dec %%ebx\n\t" "dec %%ecx\n\t" "dec %%edx\n\t"
-        "dec %%eax\n\t" "dec %%ebx\n\t" "dec %%ecx\n\t" "dec %%edx\n\t"
-        "dec %%eax\n\t" "dec %%ebx\n\t" "dec %%ecx\n\t" "dec %%edx\n\t"
-        "dec %%eax\n\t" "dec %%ebx\n\t" "dec %%ecx\n\t" "dec %%edx\n\t"
-        "dec %%eax\n\t" "dec %%ebx\n\t" "dec %%ecx\n\t" "dec %%edx\n\t"
-        "dec %%eax\n\t" "dec %%ebx\n\t" "dec %%ecx\n\t" "dec %%edx\n\t"
-        "dec %%eax\n\t" "dec %%ebx\n\t" "dec %%ecx\n\t" "dec %%edx\n\t"
-        "dec %%eax\n\t" "dec %%ebx\n\t" "dec %%ecx\n\t" "dec %%edx\n\t"
-        "decl %0\n\t"
-        "jnz 1b"
-        : "+r"(loops)
-        :
-        : "eax", "ebx", "ecx", "edx", "cc"
-    );
-}
-
-static void body_imul(uint32_t loops) {
-    __asm__ volatile (
-        // Initialize registers to non-zero state (1) to prevent zero-absorption
-        "mov $1, %%eax\n\t"
-        "mov $1, %%ebx\n\t"
-        "mov $1, %%ecx\n\t"
-        "mov $1, %%edx\n\t"
-        "1:\n\t"
-        // 4 independent register chains interleaved 16 times (= 64 total imul instructions)
-        "imul $3, %%eax\n\t" "imul $3, %%ebx\n\t" "imul $3, %%ecx\n\t" "imul $3, %%edx\n\t"
-        "imul $3, %%eax\n\t" "imul $3, %%ebx\n\t" "imul $3, %%ecx\n\t" "imul $3, %%edx\n\t"
-        "imul $3, %%eax\n\t" "imul $3, %%ebx\n\t" "imul $3, %%ecx\n\t" "imul $3, %%edx\n\t"
-        "imul $3, %%eax\n\t" "imul $3, %%ebx\n\t" "imul $3, %%ecx\n\t" "imul $3, %%edx\n\t"
-        "imul $3, %%eax\n\t" "imul $3, %%ebx\n\t" "imul $3, %%ecx\n\t" "imul $3, %%edx\n\t"
-        "imul $3, %%eax\n\t" "imul $3, %%ebx\n\t" "imul $3, %%ecx\n\t" "imul $3, %%edx\n\t"
-        "imul $3, %%eax\n\t" "imul $3, %%ebx\n\t" "imul $3, %%ecx\n\t" "imul $3, %%edx\n\t"
-        "imul $3, %%eax\n\t" "imul $3, %%ebx\n\t" "imul $3, %%ecx\n\t" "imul $3, %%edx\n\t"
-        "imul $3, %%eax\n\t" "imul $3, %%ebx\n\t" "imul $3, %%ecx\n\t" "imul $3, %%edx\n\t"
-        "imul $3, %%eax\n\t" "imul $3, %%ebx\n\t" "imul $3, %%ecx\n\t" "imul $3, %%edx\n\t"
-        "imul $3, %%eax\n\t" "imul $3, %%ebx\n\t" "imul $3, %%ecx\n\t" "imul $3, %%edx\n\t"
-        "imul $3, %%eax\n\t" "imul $3, %%ebx\n\t" "imul $3, %%ecx\n\t" "imul $3, %%edx\n\t"
-        "imul $3, %%eax\n\t" "imul $3, %%ebx\n\t" "imul $3, %%ecx\n\t" "imul $3, %%edx\n\t"
-        "imul $3, %%eax\n\t" "imul $3, %%ebx\n\t" "imul $3, %%ecx\n\t" "imul $3, %%edx\n\t"
-        "imul $3, %%eax\n\t" "imul $3, %%ebx\n\t" "imul $3, %%ecx\n\t" "imul $3, %%edx\n\t"
-        "imul $3, %%eax\n\t" "imul $3, %%ebx\n\t" "imul $3, %%ecx\n\t" "imul $3, %%edx\n\t"
-        "decl %0\n\t"
-        "jnz 1b"
-        : "+r"(loops)
-        :
-        : "eax", "ebx", "ecx", "edx", "cc"
-    );
-}
-
-static void body_fmul(uint32_t loops) {
-    __asm__ volatile (
-        // Load 4 constants onto the x87 FPU stack
-        "fld1\n\t"
-        "fld1\n\t"
-        "fld1\n\t"
-        "fld1\n\t"
-        "1:\n\t"
-        // Mix operations across different stack slots relative to st(0) / st(i)
-        "fmul %%st(1), %%st\n\t" "fmul %%st(2), %%st\n\t" "fmul %%st(3), %%st\n\t" "fmul %%st(4), %%st\n\t"
-        "fmul %%st(1), %%st\n\t" "fmul %%st(2), %%st\n\t" "fmul %%st(3), %%st\n\t" "fmul %%st(4), %%st\n\t"
-        "fmul %%st(1), %%st\n\t" "fmul %%st(2), %%st\n\t" "fmul %%st(3), %%st\n\t" "fmul %%st(4), %%st\n\t"
-        "fmul %%st(1), %%st\n\t" "fmul %%st(2), %%st\n\t" "fmul %%st(3), %%st\n\t" "fmul %%st(4), %%st\n\t"
-        "fmul %%st(1), %%st\n\t" "fmul %%st(2), %%st\n\t" "fmul %%st(3), %%st\n\t" "fmul %%st(4), %%st\n\t"
-        "fmul %%st(1), %%st\n\t" "fmul %%st(2), %%st\n\t" "fmul %%st(3), %%st\n\t" "fmul %%st(4), %%st\n\t"
-        "fmul %%st(1), %%st\n\t" "fmul %%st(2), %%st\n\t" "fmul %%st(3), %%st\n\t" "fmul %%st(4), %%st\n\t"
-        "fmul %%st(1), %%st\n\t" "fmul %%st(2), %%st\n\t" "fmul %%st(3), %%st\n\t" "fmul %%st(4), %%st\n\t"
-        "decl %0\n\t"
-        "jnz 1b\n\t"
-        // Clean up FPU stack (pop all 4 loaded values)
-        "fstp %%st(0)\n\t"
-        "fstp %%st(0)\n\t"
-        "fstp %%st(0)\n\t"
-        "fstp %%st(0)"
-        : "+r"(loops)
-        :
-        : "cc"
-    );
-}
-
-static void body_and(uint32_t loops) {
-    __asm__ volatile (
-        // Initialize registers with all-bits-set pattern
-        "mov $0xffffffff, %%eax\n\t"
-        "mov $0xffffffff, %%ebx\n\t"
-        "mov $0xffffffff, %%ecx\n\t"
-        "mov $0xffffffff, %%edx\n\t"
-        "1:\n\t"
-        // 4 independent register chains interleaved 16 times (= 64 total and instructions)
-        "and $3, %%eax\n\t" "and $3, %%ebx\n\t" "and $3, %%ecx\n\t" "and $3, %%edx\n\t"
-        "and $3, %%eax\n\t" "and $3, %%ebx\n\t" "and $3, %%ecx\n\t" "and $3, %%edx\n\t"
-        "and $3, %%eax\n\t" "and $3, %%ebx\n\t" "and $3, %%ecx\n\t" "and $3, %%edx\n\t"
-        "and $3, %%eax\n\t" "and $3, %%ebx\n\t" "and $3, %%ecx\n\t" "and $3, %%edx\n\t"
-        "and $3, %%eax\n\t" "and $3, %%ebx\n\t" "and $3, %%ecx\n\t" "and $3, %%edx\n\t"
-        "and $3, %%eax\n\t" "and $3, %%ebx\n\t" "and $3, %%ecx\n\t" "and $3, %%edx\n\t"
-        "and $3, %%eax\n\t" "and $3, %%ebx\n\t" "and $3, %%ecx\n\t" "and $3, %%edx\n\t"
-        "and $3, %%eax\n\t" "and $3, %%ebx\n\t" "and $3, %%ecx\n\t" "and $3, %%edx\n\t"
-        "and $3, %%eax\n\t" "and $3, %%ebx\n\t" "and $3, %%ecx\n\t" "and $3, %%edx\n\t"
-        "and $3, %%eax\n\t" "and $3, %%ebx\n\t" "and $3, %%ecx\n\t" "and $3, %%edx\n\t"
-        "and $3, %%eax\n\t" "and $3, %%ebx\n\t" "and $3, %%ecx\n\t" "and $3, %%edx\n\t"
-        "and $3, %%eax\n\t" "and $3, %%ebx\n\t" "and $3, %%ecx\n\t" "and $3, %%edx\n\t"
-        "and $3, %%eax\n\t" "and $3, %%ebx\n\t" "and $3, %%ecx\n\t" "and $3, %%edx\n\t"
-        "and $3, %%eax\n\t" "and $3, %%ebx\n\t" "and $3, %%ecx\n\t" "and $3, %%edx\n\t"
-        "and $3, %%eax\n\t" "and $3, %%ebx\n\t" "and $3, %%ecx\n\t" "and $3, %%edx\n\t"
-        "and $3, %%eax\n\t" "and $3, %%ebx\n\t" "and $3, %%ecx\n\t" "and $3, %%edx\n\t"
-        "decl %0\n\t"
-        "jnz 1b"
-        : "+r"(loops)
-        :
-        : "eax", "ebx", "ecx", "edx", "cc"
-    );
-}
-
-static void body_or(uint32_t loops) {
-    __asm__ volatile (
-        // Clear/initialize registers to zero
-        "xor %%eax, %%eax\n\t"
-        "xor %%ebx, %%ebx\n\t"
-        "xor %%ecx, %%ecx\n\t"
-        "xor %%edx, %%edx\n\t"
-        "1:\n\t"
-        // 4 independent register chains interleaved 16 times (= 64 total or instructions)
-        "or $3, %%eax\n\t" "or $3, %%ebx\n\t" "or $3, %%ecx\n\t" "or $3, %%edx\n\t"
-        "or $3, %%eax\n\t" "or $3, %%ebx\n\t" "or $3, %%ecx\n\t" "or $3, %%edx\n\t"
-        "or $3, %%eax\n\t" "or $3, %%ebx\n\t" "or $3, %%ecx\n\t" "or $3, %%edx\n\t"
-        "or $3, %%eax\n\t" "or $3, %%ebx\n\t" "or $3, %%ecx\n\t" "or $3, %%edx\n\t"
-        "or $3, %%eax\n\t" "or $3, %%ebx\n\t" "or $3, %%ecx\n\t" "or $3, %%edx\n\t"
-        "or $3, %%eax\n\t" "or $3, %%ebx\n\t" "or $3, %%ecx\n\t" "or $3, %%edx\n\t"
-        "or $3, %%eax\n\t" "or $3, %%ebx\n\t" "or $3, %%ecx\n\t" "or $3, %%edx\n\t"
-        "or $3, %%eax\n\t" "or $3, %%ebx\n\t" "or $3, %%ecx\n\t" "or $3, %%edx\n\t"
-        "or $3, %%eax\n\t" "or $3, %%ebx\n\t" "or $3, %%ecx\n\t" "or $3, %%edx\n\t"
-        "or $3, %%eax\n\t" "or $3, %%ebx\n\t" "or $3, %%ecx\n\t" "or $3, %%edx\n\t"
-        "or $3, %%eax\n\t" "or $3, %%ebx\n\t" "or $3, %%ecx\n\t" "or $3, %%edx\n\t"
-        "or $3, %%eax\n\t" "or $3, %%ebx\n\t" "or $3, %%ecx\n\t" "or $3, %%edx\n\t"
-        "or $3, %%eax\n\t" "or $3, %%ebx\n\t" "or $3, %%ecx\n\t" "or $3, %%edx\n\t"
-        "or $3, %%eax\n\t" "or $3, %%ebx\n\t" "or $3, %%ecx\n\t" "or $3, %%edx\n\t"
-        "or $3, %%eax\n\t" "or $3, %%ebx\n\t" "or $3, %%ecx\n\t" "or $3, %%edx\n\t"
-        "or $3, %%eax\n\t" "or $3, %%ebx\n\t" "or $3, %%ecx\n\t" "or $3, %%edx\n\t"
-        "decl %0\n\t"
-        "jnz 1b"
-        : "+r"(loops)
-        :
-        : "eax", "ebx", "ecx", "edx", "cc"
-    );
-}
-
-static void body_xor(uint32_t loops) {
-    __asm__ volatile (
-        // Initialize registers to zero
-        "xor %%eax, %%eax\n\t"
-        "xor %%ebx, %%ebx\n\t"
-        "xor %%ecx, %%ecx\n\t"
-        "xor %%edx, %%edx\n\t"
-        "1:\n\t"
-        // 4 independent register chains interleaved 16 times (= 64 total xor instructions)
-        "xor $3, %%eax\n\t" "xor $3, %%ebx\n\t" "xor $3, %%ecx\n\t" "xor $3, %%edx\n\t"
-        "xor $3, %%eax\n\t" "xor $3, %%ebx\n\t" "xor $3, %%ecx\n\t" "xor $3, %%edx\n\t"
-        "xor $3, %%eax\n\t" "xor $3, %%ebx\n\t" "xor $3, %%ecx\n\t" "xor $3, %%edx\n\t"
-        "xor $3, %%eax\n\t" "xor $3, %%ebx\n\t" "xor $3, %%ecx\n\t" "xor $3, %%edx\n\t"
-        "xor $3, %%eax\n\t" "xor $3, %%ebx\n\t" "xor $3, %%ecx\n\t" "xor $3, %%edx\n\t"
-        "xor $3, %%eax\n\t" "xor $3, %%ebx\n\t" "xor $3, %%ecx\n\t" "xor $3, %%edx\n\t"
-        "xor $3, %%eax\n\t" "xor $3, %%ebx\n\t" "xor $3, %%ecx\n\t" "xor $3, %%edx\n\t"
-        "xor $3, %%eax\n\t" "xor $3, %%ebx\n\t" "xor $3, %%ecx\n\t" "xor $3, %%edx\n\t"
-        "xor $3, %%eax\n\t" "xor $3, %%ebx\n\t" "xor $3, %%ecx\n\t" "xor $3, %%edx\n\t"
-        "xor $3, %%eax\n\t" "xor $3, %%ebx\n\t" "xor $3, %%ecx\n\t" "xor $3, %%edx\n\t"
-        "xor $3, %%eax\n\t" "xor $3, %%ebx\n\t" "xor $3, %%ecx\n\t" "xor $3, %%edx\n\t"
-        "xor $3, %%eax\n\t" "xor $3, %%ebx\n\t" "xor $3, %%ecx\n\t" "xor $3, %%edx\n\t"
-        "xor $3, %%eax\n\t" "xor $3, %%ebx\n\t" "xor $3, %%ecx\n\t" "xor $3, %%edx\n\t"
-        "xor $3, %%eax\n\t" "xor $3, %%ebx\n\t" "xor $3, %%ecx\n\t" "xor $3, %%edx\n\t"
-        "xor $3, %%eax\n\t" "xor $3, %%ebx\n\t" "xor $3, %%ecx\n\t" "xor $3, %%edx\n\t"
-        "xor $3, %%eax\n\t" "xor $3, %%ebx\n\t" "xor $3, %%ecx\n\t" "xor $3, %%edx\n\t"
-        "decl %0\n\t"
-        "jnz 1b"
-        : "+r"(loops)
-        :
-        : "eax", "ebx", "ecx", "edx", "cc"
-    );
-}
-
-static void body_shl(uint32_t loops) {
-    __asm__ volatile (
-        // Initialize registers to a non-zero pattern (e.g. 1)
-        "mov $1, %%eax\n\t"
-        "mov $1, %%ebx\n\t"
-        "mov $1, %%ecx\n\t"
-        "mov $1, %%edx\n\t"
-        "1:\n\t"
-        // 4 independent register chains interleaved 16 times (= 64 total shl instructions)
-        "shl $1, %%eax\n\t" "shl $1, %%ebx\n\t" "shl $1, %%ecx\n\t" "shl $1, %%edx\n\t"
-        "shl $1, %%eax\n\t" "shl $1, %%ebx\n\t" "shl $1, %%ecx\n\t" "shl $1, %%edx\n\t"
-        "shl $1, %%eax\n\t" "shl $1, %%ebx\n\t" "shl $1, %%ecx\n\t" "shl $1, %%edx\n\t"
-        "shl $1, %%eax\n\t" "shl $1, %%ebx\n\t" "shl $1, %%ecx\n\t" "shl $1, %%edx\n\t"
-        "shl $1, %%eax\n\t" "shl $1, %%ebx\n\t" "shl $1, %%ecx\n\t" "shl $1, %%edx\n\t"
-        "shl $1, %%eax\n\t" "shl $1, %%ebx\n\t" "shl $1, %%ecx\n\t" "shl $1, %%edx\n\t"
-        "shl $1, %%eax\n\t" "shl $1, %%ebx\n\t" "shl $1, %%ecx\n\t" "shl $1, %%edx\n\t"
-        "shl $1, %%eax\n\t" "shl $1, %%ebx\n\t" "shl $1, %%ecx\n\t" "shl $1, %%edx\n\t"
-        "shl $1, %%eax\n\t" "shl $1, %%ebx\n\t" "shl $1, %%ecx\n\t" "shl $1, %%edx\n\t"
-        "shl $1, %%eax\n\t" "shl $1, %%ebx\n\t" "shl $1, %%ecx\n\t" "shl $1, %%edx\n\t"
-        "shl $1, %%eax\n\t" "shl $1, %%ebx\n\t" "shl $1, %%ecx\n\t" "shl $1, %%edx\n\t"
-        "shl $1, %%eax\n\t" "shl $1, %%ebx\n\t" "shl $1, %%ecx\n\t" "shl $1, %%edx\n\t"
-        "shl $1, %%eax\n\t" "shl $1, %%ebx\n\t" "shl $1, %%ecx\n\t" "shl $1, %%edx\n\t"
-        "shl $1, %%eax\n\t" "shl $1, %%ebx\n\t" "shl $1, %%ecx\n\t" "shl $1, %%edx\n\t"
-        "shl $1, %%eax\n\t" "shl $1, %%ebx\n\t" "shl $1, %%ecx\n\t" "shl $1, %%edx\n\t"
-        "shl $1, %%eax\n\t" "shl $1, %%ebx\n\t" "shl $1, %%ecx\n\t" "shl $1, %%edx\n\t"
-        "decl %0\n\t"
-        "jnz 1b"
-        : "+r"(loops)
-        :
-        : "eax", "ebx", "ecx", "edx", "cc"
-    );
-}
-
-static void body_shr(uint32_t loops) {
-    __asm__ volatile (
-        // Initialize registers to a large value (e.g. 0x80000000 or 0xffffffff)
-        "mov $0x80000000, %%eax\n\t"
-        "mov $0x80000000, %%ebx\n\t"
-        "mov $0x80000000, %%ecx\n\t"
-        "mov $0x80000000, %%edx\n\t"
-        "1:\n\t"
-        // 4 independent register chains interleaved 16 times (= 64 total shr instructions)
-        "shr $1, %%eax\n\t" "shr $1, %%ebx\n\t" "shr $1, %%ecx\n\t" "shr $1, %%edx\n\t"
-        "shr $1, %%eax\n\t" "shr $1, %%ebx\n\t" "shr $1, %%ecx\n\t" "shr $1, %%edx\n\t"
-        "shr $1, %%eax\n\t" "shr $1, %%ebx\n\t" "shr $1, %%ecx\n\t" "shr $1, %%edx\n\t"
-        "shr $1, %%eax\n\t" "shr $1, %%ebx\n\t" "shr $1, %%ecx\n\t" "shr $1, %%edx\n\t"
-        "shr $1, %%eax\n\t" "shr $1, %%ebx\n\t" "shr $1, %%ecx\n\t" "shr $1, %%edx\n\t"
-        "shr $1, %%eax\n\t" "shr $1, %%ebx\n\t" "shr $1, %%ecx\n\t" "shr $1, %%edx\n\t"
-        "shr $1, %%eax\n\t" "shr $1, %%ebx\n\t" "shr $1, %%ecx\n\t" "shr $1, %%edx\n\t"
-        "shr $1, %%eax\n\t" "shr $1, %%ebx\n\t" "shr $1, %%ecx\n\t" "shr $1, %%edx\n\t"
-        "shr $1, %%eax\n\t" "shr $1, %%ebx\n\t" "shr $1, %%ecx\n\t" "shr $1, %%edx\n\t"
-        "shr $1, %%eax\n\t" "shr $1, %%ebx\n\t" "shr $1, %%ecx\n\t" "shr $1, %%edx\n\t"
-        "shr $1, %%eax\n\t" "shr $1, %%ebx\n\t" "shr $1, %%ecx\n\t" "shr $1, %%edx\n\t"
-        "shr $1, %%eax\n\t" "shr $1, %%ebx\n\t" "shr $1, %%ecx\n\t" "shr $1, %%edx\n\t"
-        "shr $1, %%eax\n\t" "shr $1, %%ebx\n\t" "shr $1, %%ecx\n\t" "shr $1, %%edx\n\t"
-        "shr $1, %%eax\n\t" "shr $1, %%ebx\n\t" "shr $1, %%ecx\n\t" "shr $1, %%edx\n\t"
-        "shr $1, %%eax\n\t" "shr $1, %%ebx\n\t" "shr $1, %%ecx\n\t" "shr $1, %%edx\n\t"
-        "shr $1, %%eax\n\t" "shr $1, %%ebx\n\t" "shr $1, %%ecx\n\t" "shr $1, %%edx\n\t"
-        "decl %0\n\t"
-        "jnz 1b"
-        : "+r"(loops)
-        :
-        : "eax", "ebx", "ecx", "edx", "cc"
-    );
-}
-/*
-static void body_vaddps(uint32_t loops) {
-    __asm__ volatile (
-        // Initialize YMM registers to zero (or seed pattern)
-        "vxorps %%ymm0, %%ymm0, %%ymm0\n\t"
-        "vxorps %%ymm1, %%ymm1, %%ymm1\n\t"
-        "vxorps %%ymm2, %%ymm2, %%ymm2\n\t"
-        "vxorps %%ymm3, %%ymm3, %%ymm3\n\t"
-        "1:\n\t"
-        // 4 independent register chains interleaved 16 times (= 64 total vaddps instructions)
-        "vaddps %%ymm0, %%ymm0, %%ymm0\n\t" "vaddps %%ymm1, %%ymm1, %%ymm1\n\t" "vaddps %%ymm2, %%ymm2, %%ymm2\n\t" "vaddps %%ymm3, %%ymm3, %%ymm3\n\t"
-        "vaddps %%ymm0, %%ymm0, %%ymm0\n\t" "vaddps %%ymm1, %%ymm1, %%ymm1\n\t" "vaddps %%ymm2, %%ymm2, %%ymm2\n\t" "vaddps %%ymm3, %%ymm3, %%ymm3\n\t"
-        "vaddps %%ymm0, %%ymm0, %%ymm0\n\t" "vaddps %%ymm1, %%ymm1, %%ymm1\n\t" "vaddps %%ymm2, %%ymm2, %%ymm2\n\t" "vaddps %%ymm3, %%ymm3, %%ymm3\n\t"
-        "vaddps %%ymm0, %%ymm0, %%ymm0\n\t" "vaddps %%ymm1, %%ymm1, %%ymm1\n\t" "vaddps %%ymm2, %%ymm2, %%ymm2\n\t" "vaddps %%ymm3, %%ymm3, %%ymm3\n\t"
-        "vaddps %%ymm0, %%ymm0, %%ymm0\n\t" "vaddps %%ymm1, %%ymm1, %%ymm1\n\t" "vaddps %%ymm2, %%ymm2, %%ymm2\n\t" "vaddps %%ymm3, %%ymm3, %%ymm3\n\t"
-        "vaddps %%ymm0, %%ymm0, %%ymm0\n\t" "vaddps %%ymm1, %%ymm1, %%ymm1\n\t" "vaddps %%ymm2, %%ymm2, %%ymm2\n\t" "vaddps %%ymm3, %%ymm3, %%ymm3\n\t"
-        "vaddps %%ymm0, %%ymm0, %%ymm0\n\t" "vaddps %%ymm1, %%ymm1, %%ymm1\n\t" "vaddps %%ymm2, %%ymm2, %%ymm2\n\t" "vaddps %%ymm3, %%ymm3, %%ymm3\n\t"
-        "vaddps %%ymm0, %%ymm0, %%ymm0\n\t" "vaddps %%ymm1, %%ymm1, %%ymm1\n\t" "vaddps %%ymm2, %%ymm2, %%ymm2\n\t" "vaddps %%ymm3, %%ymm3, %%ymm3\n\t"
-        "vaddps %%ymm0, %%ymm0, %%ymm0\n\t" "vaddps %%ymm1, %%ymm1, %%ymm1\n\t" "vaddps %%ymm2, %%ymm2, %%ymm2\n\t" "vaddps %%ymm3, %%ymm3, %%ymm3\n\t"
-        "vaddps %%ymm0, %%ymm0, %%ymm0\n\t" "vaddps %%ymm1, %%ymm1, %%ymm1\n\t" "vaddps %%ymm2, %%ymm2, %%ymm2\n\t" "vaddps %%ymm3, %%ymm3, %%ymm3\n\t"
-        "vaddps %%ymm0, %%ymm0, %%ymm0\n\t" "vaddps %%ymm1, %%ymm1, %%ymm1\n\t" "vaddps %%ymm2, %%ymm2, %%ymm2\n\t" "vaddps %%ymm3, %%ymm3, %%ymm3\n\t"
-        "vaddps %%ymm0, %%ymm0, %%ymm0\n\t" "vaddps %%ymm1, %%ymm1, %%ymm1\n\t" "vaddps %%ymm2, %%ymm2, %%ymm2\n\t" "vaddps %%ymm3, %%ymm3, %%ymm3\n\t"
-        "vaddps %%ymm0, %%ymm0, %%ymm0\n\t" "vaddps %%ymm1, %%ymm1, %%ymm1\n\t" "vaddps %%ymm2, %%ymm2, %%ymm2\n\t" "vaddps %%ymm3, %%ymm3, %%ymm3\n\t"
-        "vaddps %%ymm0, %%ymm0, %%ymm0\n\t" "vaddps %%ymm1, %%ymm1, %%ymm1\n\t" "vaddps %%ymm2, %%ymm2, %%ymm2\n\t" "vaddps %%ymm3, %%ymm3, %%ymm3\n\t"
-        "vaddps %%ymm0, %%ymm0, %%ymm0\n\t" "vaddps %%ymm1, %%ymm1, %%ymm1\n\t" "vaddps %%ymm2, %%ymm2, %%ymm2\n\t" "vaddps %%ymm3, %%ymm3, %%ymm3\n\t"
-        "vaddps %%ymm0, %%ymm0, %%ymm0\n\t" "vaddps %%ymm1, %%ymm1, %%ymm1\n\t" "vaddps %%ymm2, %%ymm2, %%ymm2\n\t" "vaddps %%ymm3, %%ymm3, %%ymm3\n\t"
-        "decl %0\n\t"
-        "jnz 1b"
-        : "+r"(loops)
-        :
-        : "ymm0", "ymm1", "ymm2", "ymm3", "cc"
-    );
-}
-
-static void body_vmulps(uint32_t loops) {
-    __asm__ volatile (
-        // Initialize YMM registers with all-1s or non-zero pattern via vpcmpeqd
-        "vpcmpeqd %%ymm0, %%ymm0, %%ymm0\n\t"
-        "vpcmpeqd %%ymm1, %%ymm1, %%ymm1\n\t"
-        "vpcmpeqd %%ymm2, %%ymm2, %%ymm2\n\t"
-        "vpcmpeqd %%ymm3, %%ymm3, %%ymm3\n\t"
-        "1:\n\t"
-        // 4 independent register chains interleaved 16 times (= 64 total vmulps instructions)
-        "vmulps %%ymm0, %%ymm0, %%ymm0\n\t" "vmulps %%ymm1, %%ymm1, %%ymm1\n\t" "vmulps %%ymm2, %%ymm2, %%ymm2\n\t" "vmulps %%ymm3, %%ymm3, %%ymm3\n\t"
-        "vmulps %%ymm0, %%ymm0, %%ymm0\n\t" "vmulps %%ymm1, %%ymm1, %%ymm1\n\t" "vmulps %%ymm2, %%ymm2, %%ymm2\n\t" "vmulps %%ymm3, %%ymm3, %%ymm3\n\t"
-        "vmulps %%ymm0, %%ymm0, %%ymm0\n\t" "vmulps %%ymm1, %%ymm1, %%ymm1\n\t" "vmulps %%ymm2, %%ymm2, %%ymm2\n\t" "vmulps %%ymm3, %%ymm3, %%ymm3\n\t"
-        "vmulps %%ymm0, %%ymm0, %%ymm0\n\t" "vmulps %%ymm1, %%ymm1, %%ymm1\n\t" "vmulps %%ymm2, %%ymm2, %%ymm2\n\t" "vmulps %%ymm3, %%ymm3, %%ymm3\n\t"
-        "vmulps %%ymm0, %%ymm0, %%ymm0\n\t" "vmulps %%ymm1, %%ymm1, %%ymm1\n\t" "vmulps %%ymm2, %%ymm2, %%ymm2\n\t" "vmulps %%ymm3, %%ymm3, %%ymm3\n\t"
-        "vmulps %%ymm0, %%ymm0, %%ymm0\n\t" "vmulps %%ymm1, %%ymm1, %%ymm1\n\t" "vmulps %%ymm2, %%ymm2, %%ymm2\n\t" "vmulps %%ymm3, %%ymm3, %%ymm3\n\t"
-        "vmulps %%ymm0, %%ymm0, %%ymm0\n\t" "vmulps %%ymm1, %%ymm1, %%ymm1\n\t" "vmulps %%ymm2, %%ymm2, %%ymm2\n\t" "vmulps %%ymm3, %%ymm3, %%ymm3\n\t"
-        "vmulps %%ymm0, %%ymm0, %%ymm0\n\t" "vmulps %%ymm1, %%ymm1, %%ymm1\n\t" "vmulps %%ymm2, %%ymm2, %%ymm2\n\t" "vmulps %%ymm3, %%ymm3, %%ymm3\n\t"
-        "vmulps %%ymm0, %%ymm0, %%ymm0\n\t" "vmulps %%ymm1, %%ymm1, %%ymm1\n\t" "vmulps %%ymm2, %%ymm2, %%ymm2\n\t" "vmulps %%ymm3, %%ymm3, %%ymm3\n\t"
-        "vmulps %%ymm0, %%ymm0, %%ymm0\n\t" "vmulps %%ymm1, %%ymm1, %%ymm1\n\t" "vmulps %%ymm2, %%ymm2, %%ymm2\n\t" "vmulps %%ymm3, %%ymm3, %%ymm3\n\t"
-        "vmulps %%ymm0, %%ymm0, %%ymm0\n\t" "vmulps %%ymm1, %%ymm1, %%ymm1\n\t" "vmulps %%ymm2, %%ymm2, %%ymm2\n\t" "vmulps %%ymm3, %%ymm3, %%ymm3\n\t"
-        "vmulps %%ymm0, %%ymm0, %%ymm0\n\t" "vmulps %%ymm1, %%ymm1, %%ymm1\n\t" "vmulps %%ymm2, %%ymm2, %%ymm2\n\t" "vmulps %%ymm3, %%ymm3, %%ymm3\n\t"
-        "vmulps %%ymm0, %%ymm0, %%ymm0\n\t" "vmulps %%ymm1, %%ymm1, %%ymm1\n\t" "vmulps %%ymm2, %%ymm2, %%ymm2\n\t" "vmulps %%ymm3, %%ymm3, %%ymm3\n\t"
-        "vmulps %%ymm0, %%ymm0, %%ymm0\n\t" "vmulps %%ymm1, %%ymm1, %%ymm1\n\t" "vmulps %%ymm2, %%ymm2, %%ymm2\n\t" "vmulps %%ymm3, %%ymm3, %%ymm3\n\t"
-        "vmulps %%ymm0, %%ymm0, %%ymm0\n\t" "vmulps %%ymm1, %%ymm1, %%ymm1\n\t" "vmulps %%ymm2, %%ymm2, %%ymm2\n\t" "vmulps %%ymm3, %%ymm3, %%ymm3\n\t"
-        "vmulps %%ymm0, %%ymm0, %%ymm0\n\t" "vmulps %%ymm1, %%ymm1, %%ymm1\n\t" "vmulps %%ymm2, %%ymm2, %%ymm2\n\t" "vmulps %%ymm3, %%ymm3, %%ymm3\n\t"
-        "decl %0\n\t"
-        "jnz 1b"
-        : "+r"(loops)
-        :
-        : "ymm0", "ymm1", "ymm2", "ymm3", "cc"
-    );
-}
-
-static void body_vxorps(uint32_t loops) {
-    __asm__ volatile (
-        "1:\n\t"
-        // 4 independent register chains interleaved 16 times (= 64 total vxorps instructions)
-        "vxorps %%ymm0, %%ymm0, %%ymm0\n\t" "vxorps %%ymm1, %%ymm1, %%ymm1\n\t" "vxorps %%ymm2, %%ymm2, %%ymm2\n\t" "vxorps %%ymm3, %%ymm3, %%ymm3\n\t"
-        "vxorps %%ymm0, %%ymm0, %%ymm0\n\t" "vxorps %%ymm1, %%ymm1, %%ymm1\n\t" "vxorps %%ymm2, %%ymm2, %%ymm2\n\t" "vxorps %%ymm3, %%ymm3, %%ymm3\n\t"
-        "vxorps %%ymm0, %%ymm0, %%ymm0\n\t" "vxorps %%ymm1, %%ymm1, %%ymm1\n\t" "vxorps %%ymm2, %%ymm2, %%ymm2\n\t" "vxorps %%ymm3, %%ymm3, %%ymm3\n\t"
-        "vxorps %%ymm0, %%ymm0, %%ymm0\n\t" "vxorps %%ymm1, %%ymm1, %%ymm1\n\t" "vxorps %%ymm2, %%ymm2, %%ymm2\n\t" "vxorps %%ymm3, %%ymm3, %%ymm3\n\t"
-        "vxorps %%ymm0, %%ymm0, %%ymm0\n\t" "vxorps %%ymm1, %%ymm1, %%ymm1\n\t" "vxorps %%ymm2, %%ymm2, %%ymm2\n\t" "vxorps %%ymm3, %%ymm3, %%ymm3\n\t"
-        "vxorps %%ymm0, %%ymm0, %%ymm0\n\t" "vxorps %%ymm1, %%ymm1, %%ymm1\n\t" "vxorps %%ymm2, %%ymm2, %%ymm2\n\t" "vxorps %%ymm3, %%ymm3, %%ymm3\n\t"
-        "vxorps %%ymm0, %%ymm0, %%ymm0\n\t" "vxorps %%ymm1, %%ymm1, %%ymm1\n\t" "vxorps %%ymm2, %%ymm2, %%ymm2\n\t" "vxorps %%ymm3, %%ymm3, %%ymm3\n\t"
-        "vxorps %%ymm0, %%ymm0, %%ymm0\n\t" "vxorps %%ymm1, %%ymm1, %%ymm1\n\t" "vxorps %%ymm2, %%ymm2, %%ymm2\n\t" "vxorps %%ymm3, %%ymm3, %%ymm3\n\t"
-        "vxorps %%ymm0, %%ymm0, %%ymm0\n\t" "vxorps %%ymm1, %%ymm1, %%ymm1\n\t" "vxorps %%ymm2, %%ymm2, %%ymm2\n\t" "vxorps %%ymm3, %%ymm3, %%ymm3\n\t"
-        "vxorps %%ymm0, %%ymm0, %%ymm0\n\t" "vxorps %%ymm1, %%ymm1, %%ymm1\n\t" "vxorps %%ymm2, %%ymm2, %%ymm2\n\t" "vxorps %%ymm3, %%ymm3, %%ymm3\n\t"
-        "vxorps %%ymm0, %%ymm0, %%ymm0\n\t" "vxorps %%ymm1, %%ymm1, %%ymm1\n\t" "vxorps %%ymm2, %%ymm2, %%ymm2\n\t" "vxorps %%ymm3, %%ymm3, %%ymm3\n\t"
-        "vxorps %%ymm0, %%ymm0, %%ymm0\n\t" "vxorps %%ymm1, %%ymm1, %%ymm1\n\t" "vxorps %%ymm2, %%ymm2, %%ymm2\n\t" "vxorps %%ymm3, %%ymm3, %%ymm3\n\t"
-        "vxorps %%ymm0, %%ymm0, %%ymm0\n\t" "vxorps %%ymm1, %%ymm1, %%ymm1\n\t" "vxorps %%ymm2, %%ymm2, %%ymm2\n\t" "vxorps %%ymm3, %%ymm3, %%ymm3\n\t"
-        "vxorps %%ymm0, %%ymm0, %%ymm0\n\t" "vxorps %%ymm1, %%ymm1, %%ymm1\n\t" "vxorps %%ymm2, %%ymm2, %%ymm2\n\t" "vxorps %%ymm3, %%ymm3, %%ymm3\n\t"
-        "vxorps %%ymm0, %%ymm0, %%ymm0\n\t" "vxorps %%ymm1, %%ymm1, %%ymm1\n\t" "vxorps %%ymm2, %%ymm2, %%ymm2\n\t" "vxorps %%ymm3, %%ymm3, %%ymm3\n\t"
-        "vxorps %%ymm0, %%ymm0, %%ymm0\n\t" "vxorps %%ymm1, %%ymm1, %%ymm1\n\t" "vxorps %%ymm2, %%ymm2, %%ymm2\n\t" "vxorps %%ymm3, %%ymm3, %%ymm3\n\t"
-        "decl %0\n\t"
-        "jnz 1b"
-        : "+r"(loops)
-        :
-        : "ymm0", "ymm1", "ymm2", "ymm3", "cc"
-    );
-}
-*/
 static const BenchmarkItem BENCHMARKS[] = {
     { "NOP", body_nop },
     { "ADD", body_add },
@@ -613,9 +142,25 @@ static const BenchmarkItem BENCHMARKS[] = {
     { "XOR", body_xor },
     { "SHL", body_shl },
     { "SHR", body_shr },
-    //{ "VADDPS", body_vaddps },
-    //{ "VMULPS", body_vmulps },
-    //{ "VXORPS", body_vxorps }
+    { "Arithmetic Mixed", body_arithmetic_mixed },
+    { "Logic Mixed", body_logic_mixed },
+    //{ "ADDPS (SSE)", body_sse_add_single },
+    //{ "MULPS (SSE)", body_sse_mul_single },
+    //{ "ADDPD (SSE)", body_sse_add_double },
+    //{ "MULPD (SSE)", body_sse_mul_double },
+    //{ "ANDPS (SSE)", body_sse_logic_and },
+    //{ "ORPS (SSE)", body_sse_logic_or },
+    //{ "XORPS (SSE)", body_sse_logic_xor },
+    { "VADDPS (AVX)", body_vaddps },
+    { "VADDPD (AVX)", body_vaddpd },
+    { "VMULPS (AVX)", body_vmulps },
+    { "VMULPD (AVX)", body_vmulpd },
+    { "VANDPS (AVX)", body_vandps },
+    { "VORPS (AVX)", body_vorps },
+    { "VXORPS (AVX)", body_vxorps },
+    { "AVX Arithmetic Single Mixed", body_avx_arith_single_mixed },
+    { "AVX Arithmetic Double Mixed", body_avx_arith_double_mixed },
+    { "AVX Logic Mixed", body_avx_logic_mixed }
 };
 #define BENCHMARK_COUNT (sizeof(BENCHMARKS) / sizeof(BENCHMARKS[0]))
 
@@ -634,18 +179,40 @@ static uint64_t measure_cycles_per_instruction_fixed(BenchBody body, uint64_t ou
     return (best_cycles * 100ULL) / total_instructions;
 }
 
+// Define the maximum number of rows visible on the screen for the menu
+#define MAX_VISIBLE_ROWS 20
+
+// Keep track of the top-most visible item in the scrolling window
+static int scroll_offset = 0;
+
 // ==========================================
-// UI / Menu Component
+// UI / Menu Component with Scrolling Support
 // ==========================================
 static void render_menu(int current_selection) {
-    for (int i = 0; i < (int)BENCHMARK_COUNT; i++) {
+    // Adjust scroll offset dynamically based on current selection
+    if (current_selection < scroll_offset) {
+        scroll_offset = current_selection;
+    } else if (current_selection >= scroll_offset + MAX_VISIBLE_ROWS) {
+        scroll_offset = current_selection - MAX_VISIBLE_ROWS + 1;
+    }
+
+    // Render only the visible window of benchmarks
+    for (int i = 0; i < MAX_VISIBLE_ROWS; i++) {
+        int item_index = scroll_offset + i;
         int row = 2 + i;
-        if (i == current_selection) {
-            vga_print_raw(row, 2, "> ", 0x0E);
-            vga_print_raw(row, 4, BENCHMARKS[i].label, 0x0A);
+
+        // Clear the line first or overwrite properly if list size varies
+        if (item_index < (int)BENCHMARK_COUNT) {
+            if (item_index == current_selection) {
+                vga_print_raw(row, 2, ">                             ", 0x0E);
+                vga_print_raw(row, 4, BENCHMARKS[item_index].label, 0x0A);
+            } else {
+                vga_print_raw(row, 2, "                              ", 0x07);
+                vga_print_raw(row, 4, BENCHMARKS[item_index].label, 0x07);
+            }
         } else {
-            vga_print_raw(row, 2, "  ", 0x07);
-            vga_print_raw(row, 4, BENCHMARKS[i].label, 0x07);
+            // Clear unused rows if the total list is smaller than MAX_VISIBLE_ROWS
+            vga_print_raw(row, 2, "                                            ", 0x07);
         }
     }
 }
@@ -656,15 +223,18 @@ static void render_menu(int current_selection) {
 void kmain(void) {
     vga_clear();
     vga_print_raw(0, 2, "=== x86 RDTSC Benchmark ===", 0x0A);
-    vga_print_raw(BENCHMARK_COUNT + 3, 2, "Arrow up/down: Selection | Enter: Start", 0x07);
+    vga_print_raw(0, 40, "Arrow up/down: Selection | Enter: Start", 0x07);
 
     int current_selection = 0;
     int last_selection = -1;
+    int last_scroll_offset = -1; // Track scroll offset changes to force redraws
 
     while (1) {
-        if (current_selection != last_selection) {
+        // Redraw if selection or the scrolling window position changed
+        if (current_selection != last_selection || scroll_offset != last_scroll_offset) {
             render_menu(current_selection);
             last_selection = current_selection;
+            last_scroll_offset = scroll_offset;
         }
 
         int key = get_key();
@@ -674,10 +244,10 @@ void kmain(void) {
         } else if (key == KEY_DOWN) {
             current_selection = (current_selection + 1) % BENCHMARK_COUNT;
         } else if (key == KEY_ENTER) {
-            vga_print_raw(BENCHMARK_COUNT + 5, 2, "Running benchmark...                                        ", 0x0E);
+            vga_print_raw(23, 2, "Running benchmark...                                                  ", 0x0E);
             uint64_t cpi_scaled = measure_cycles_per_instruction_fixed(BENCHMARKS[current_selection].body, OUTER_LOOPS);
-            vga_print_raw(BENCHMARK_COUNT + 5, 2, "CPI * 100, e.g. 25=0.25 (lower is better): ", 0x07);
-            vga_print_num(BENCHMARK_COUNT + 5, 50, cpi_scaled);
+            vga_print_raw(23, 2, "CPI * 100, e.g. 25=0.25 (lower is better): ", 0x07);
+            vga_print_num(23, 60, cpi_scaled);
         } else if (key >= KEY_NUM_START && key < (int)(KEY_NUM_START + BENCHMARK_COUNT)) {
             current_selection = key - KEY_NUM_START;
         }
