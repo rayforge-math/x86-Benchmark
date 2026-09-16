@@ -748,6 +748,31 @@ static inline void body_sse_logic_single_mixed(uint32_t loops) {
     );
 }
 
+static inline void body_sse_logic_double_mixed(uint32_t loops) {
+    __asm__ volatile (
+        // Initialize XMM registers with all-1s pattern via pcmpeqd
+        "pcmpeqd %%xmm0, %%xmm0\n\t"
+        "pcmpeqd %%xmm1, %%xmm1\n\t"
+        "pcmpeqd %%xmm2, %%xmm2\n\t"
+        "pcmpeqd %%xmm3, %%xmm3\n\t"
+        "1:\n\t"
+        // Mixed 128-bit SSE double-precision logical operations (andpd, orpd, xorpd)
+        "andpd %%xmm1, %%xmm0\n\t" "orpd %%xmm2, %%xmm1\n\t"  "xorpd %%xmm3, %%xmm2\n\t" "andpd %%xmm0, %%xmm3\n\t"
+        "orpd %%xmm1, %%xmm0\n\t"  "xorpd %%xmm2, %%xmm1\n\t" "andpd %%xmm3, %%xmm2\n\t" "orpd %%xmm0, %%xmm3\n\t"
+        "xorpd %%xmm1, %%xmm0\n\t" "andpd %%xmm2, %%xmm1\n\t" "orpd %%xmm3, %%xmm2\n\t"  "xorpd %%xmm0, %%xmm3\n\t"
+        "andpd %%xmm1, %%xmm0\n\t" "orpd %%xmm2, %%xmm1\n\t"  "xorpd %%xmm3, %%xmm2\n\t" "andpd %%xmm0, %%xmm3\n\t"
+        "orpd %%xmm1, %%xmm0\n\t"  "xorpd %%xmm2, %%xmm1\n\t" "andpd %%xmm3, %%xmm2\n\t" "orpd %%xmm0, %%xmm3\n\t"
+        "xorpd %%xmm1, %%xmm0\n\t" "andpd %%xmm2, %%xmm1\n\t" "orpd %%xmm3, %%xmm2\n\t"  "xorpd %%xmm0, %%xmm3\n\t"
+        "andpd %%xmm1, %%xmm0\n\t" "orpd %%xmm2, %%xmm1\n\t"  "xorpd %%xmm3, %%xmm2\n\t" "andpd %%xmm0, %%xmm3\n\t"
+        "orpd %%xmm1, %%xmm0\n\t"  "xorpd %%xmm2, %%xmm1\n\t" "andpd %%xmm3, %%xmm2\n\t" "orpd %%xmm0, %%xmm3\n\t"
+        "decl %0\n\t"
+        "jnz 1b"
+        : "+r"(loops)
+        :
+        : "xmm0", "xmm1", "xmm2", "xmm3", "cc"
+    );
+}
+
 static void body_vaddps(uint32_t loops) {
     __asm__ volatile (
         // Initialize YMM registers to zero (or seed pattern)
@@ -974,6 +999,100 @@ static void body_vxorps(uint32_t loops) {
     );
 }
 
+static void body_vandpd(uint32_t loops) {
+    __asm__ volatile (
+        // Initialize YMM registers with all-1s pattern to give the AND instruction work to do
+        "vpcmpeqd %%ymm0, %%ymm0, %%ymm0\n\t"
+        "vpcmpeqd %%ymm1, %%ymm1, %%ymm1\n\t"
+        "vpcmpeqd %%ymm2, %%ymm2, %%ymm2\n\t"
+        "vpcmpeqd %%ymm3, %%ymm3, %%ymm3\n\t"
+        "1:\n\t"
+        // 4 independent register chains interleaved 16 times (= 64 total vandpd instructions)
+        "vandpd %%ymm0, %%ymm0, %%ymm0\n\t" "vandpd %%ymm1, %%ymm1, %%ymm1\n\t" "vandpd %%ymm2, %%ymm2, %%ymm2\n\t" "vandpd %%ymm3, %%ymm3, %%ymm3\n\t"
+        "vandpd %%ymm0, %%ymm0, %%ymm0\n\t" "vandpd %%ymm1, %%ymm1, %%ymm1\n\t" "vandpd %%ymm2, %%ymm2, %%ymm2\n\t" "vandpd %%ymm3, %%ymm3, %%ymm3\n\t"
+        "vandpd %%ymm0, %%ymm0, %%ymm0\n\t" "vandpd %%ymm1, %%ymm1, %%ymm1\n\t" "vandpd %%ymm2, %%ymm2, %%ymm2\n\t" "vandpd %%ymm3, %%ymm3, %%ymm3\n\t"
+        "vandpd %%ymm0, %%ymm0, %%ymm0\n\t" "vandpd %%ymm1, %%ymm1, %%ymm1\n\t" "vandpd %%ymm2, %%ymm2, %%ymm2\n\t" "vandpd %%ymm3, %%ymm3, %%ymm3\n\t"
+        "vandpd %%ymm0, %%ymm0, %%ymm0\n\t" "vandpd %%ymm1, %%ymm1, %%ymm1\n\t" "vandpd %%ymm2, %%ymm2, %%ymm2\n\t" "vandpd %%ymm3, %%ymm3, %%ymm3\n\t"
+        "vandpd %%ymm0, %%ymm0, %%ymm0\n\t" "vandpd %%ymm1, %%ymm1, %%ymm1\n\t" "vandpd %%ymm2, %%ymm2, %%ymm2\n\t" "vandpd %%ymm3, %%ymm3, %%ymm3\n\t"
+        "vandpd %%ymm0, %%ymm0, %%ymm0\n\t" "vandpd %%ymm1, %%ymm1, %%ymm1\n\t" "vandpd %%ymm2, %%ymm2, %%ymm2\n\t" "vandpd %%ymm3, %%ymm3, %%ymm3\n\t"
+        "vandpd %%ymm0, %%ymm0, %%ymm0\n\t" "vandpd %%ymm1, %%ymm1, %%ymm1\n\t" "vandpd %%ymm2, %%ymm2, %%ymm2\n\t" "vandpd %%ymm3, %%ymm3, %%ymm3\n\t"
+        "vandpd %%ymm0, %%ymm0, %%ymm0\n\t" "vandpd %%ymm1, %%ymm1, %%ymm1\n\t" "vandpd %%ymm2, %%ymm2, %%ymm2\n\t" "vandpd %%ymm3, %%ymm3, %%ymm3\n\t"
+        "vandpd %%ymm0, %%ymm0, %%ymm0\n\t" "vandpd %%ymm1, %%ymm1, %%ymm1\n\t" "vandpd %%ymm2, %%ymm2, %%ymm2\n\t" "vandpd %%ymm3, %%ymm3, %%ymm3\n\t"
+        "vandpd %%ymm0, %%ymm0, %%ymm0\n\t" "vandpd %%ymm1, %%ymm1, %%ymm1\n\t" "vandpd %%ymm2, %%ymm2, %%ymm2\n\t" "vandpd %%ymm3, %%ymm3, %%ymm3\n\t"
+        "vandpd %%ymm0, %%ymm0, %%ymm0\n\t" "vandpd %%ymm1, %%ymm1, %%ymm1\n\t" "vandpd %%ymm2, %%ymm2, %%ymm2\n\t" "vandpd %%ymm3, %%ymm3, %%ymm3\n\t"
+        "vandpd %%ymm0, %%ymm0, %%ymm0\n\t" "vandpd %%ymm1, %%ymm1, %%ymm1\n\t" "vandpd %%ymm2, %%ymm2, %%ymm2\n\t" "vandpd %%ymm3, %%ymm3, %%ymm3\n\t"
+        "vandpd %%ymm0, %%ymm0, %%ymm0\n\t" "vandpd %%ymm1, %%ymm1, %%ymm1\n\t" "vandpd %%ymm2, %%ymm2, %%ymm2\n\t" "vandpd %%ymm3, %%ymm3, %%ymm3\n\t"
+        "vandpd %%ymm0, %%ymm0, %%ymm0\n\t" "vandpd %%ymm1, %%ymm1, %%ymm1\n\t" "vandpd %%ymm2, %%ymm2, %%ymm2\n\t" "vandpd %%ymm3, %%ymm3, %%ymm3\n\t"
+        "vandpd %%ymm0, %%ymm0, %%ymm0\n\t" "vandpd %%ymm1, %%ymm1, %%ymm1\n\t" "vandpd %%ymm2, %%ymm2, %%ymm2\n\t" "vandpd %%ymm3, %%ymm3, %%ymm3\n\t"
+        "decl %0\n\t"
+        "jnz 1b"
+        : "+r"(loops)
+        :
+        : "ymm0", "ymm1", "ymm2", "ymm3", "cc"
+    );
+}
+
+static void body_vorpd(uint32_t loops) {
+    __asm__ volatile (
+        // Initialize YMM registers with all-1s pattern
+        "vpcmpeqd %%ymm0, %%ymm0, %%ymm0\n\t"
+        "vpcmpeqd %%ymm1, %%ymm1, %%ymm1\n\t"
+        "vpcmpeqd %%ymm2, %%ymm2, %%ymm2\n\t"
+        "vpcmpeqd %%ymm3, %%ymm3, %%ymm3\n\t"
+        "1:\n\t"
+        // 4 independent register chains interleaved 16 times (= 64 total vorpd instructions)
+        "vorpd %%ymm0, %%ymm0, %%ymm0\n\t" "vorpd %%ymm1, %%ymm1, %%ymm1\n\t" "vorpd %%ymm2, %%ymm2, %%ymm2\n\t" "vorpd %%ymm3, %%ymm3, %%ymm3\n\t"
+        "vorpd %%ymm0, %%ymm0, %%ymm0\n\t" "vorpd %%ymm1, %%ymm1, %%ymm1\n\t" "vorpd %%ymm2, %%ymm2, %%ymm2\n\t" "vorpd %%ymm3, %%ymm3, %%ymm3\n\t"
+        "vorpd %%ymm0, %%ymm0, %%ymm0\n\t" "vorpd %%ymm1, %%ymm1, %%ymm1\n\t" "vorpd %%ymm2, %%ymm2, %%ymm2\n\t" "vorpd %%ymm3, %%ymm3, %%ymm3\n\t"
+        "vorpd %%ymm0, %%ymm0, %%ymm0\n\t" "vorpd %%ymm1, %%ymm1, %%ymm1\n\t" "vorpd %%ymm2, %%ymm2, %%ymm2\n\t" "vorpd %%ymm3, %%ymm3, %%ymm3\n\t"
+        "vorpd %%ymm0, %%ymm0, %%ymm0\n\t" "vorpd %%ymm1, %%ymm1, %%ymm1\n\t" "vorpd %%ymm2, %%ymm2, %%ymm2\n\t" "vorpd %%ymm3, %%ymm3, %%ymm3\n\t"
+        "vorpd %%ymm0, %%ymm0, %%ymm0\n\t" "vorpd %%ymm1, %%ymm1, %%ymm1\n\t" "vorpd %%ymm2, %%ymm2, %%ymm2\n\t" "vorpd %%ymm3, %%ymm3, %%ymm3\n\t"
+        "vorpd %%ymm0, %%ymm0, %%ymm0\n\t" "vorpd %%ymm1, %%ymm1, %%ymm1\n\t" "vorpd %%ymm2, %%ymm2, %%ymm2\n\t" "vorpd %%ymm3, %%ymm3, %%ymm3\n\t"
+        "vorpd %%ymm0, %%ymm0, %%ymm0\n\t" "vorpd %%ymm1, %%ymm1, %%ymm1\n\t" "vorpd %%ymm2, %%ymm2, %%ymm2\n\t" "vorpd %%ymm3, %%ymm3, %%ymm3\n\t"
+        "vorpd %%ymm0, %%ymm0, %%ymm0\n\t" "vorpd %%ymm1, %%ymm1, %%ymm1\n\t" "vorpd %%ymm2, %%ymm2, %%ymm2\n\t" "vorpd %%ymm3, %%ymm3, %%ymm3\n\t"
+        "vorpd %%ymm0, %%ymm0, %%ymm0\n\t" "vorpd %%ymm1, %%ymm1, %%ymm1\n\t" "vorpd %%ymm2, %%ymm2, %%ymm2\n\t" "vorpd %%ymm3, %%ymm3, %%ymm3\n\t"
+        "vorpd %%ymm0, %%ymm0, %%ymm0\n\t" "vorpd %%ymm1, %%ymm1, %%ymm1\n\t" "vorpd %%ymm2, %%ymm2, %%ymm2\n\t" "vorpd %%ymm3, %%ymm3, %%ymm3\n\t"
+        "vorpd %%ymm0, %%ymm0, %%ymm0\n\t" "vorpd %%ymm1, %%ymm1, %%ymm1\n\t" "vorpd %%ymm2, %%ymm2, %%ymm2\n\t" "vorpd %%ymm3, %%ymm3, %%ymm3\n\t"
+        "vorpd %%ymm0, %%ymm0, %%ymm0\n\t" "vorpd %%ymm1, %%ymm1, %%ymm1\n\t" "vorpd %%ymm2, %%ymm2, %%ymm2\n\t" "vorpd %%ymm3, %%ymm3, %%ymm3\n\t"
+        "vorpd %%ymm0, %%ymm0, %%ymm0\n\t" "vorpd %%ymm1, %%ymm1, %%ymm1\n\t" "vorpd %%ymm2, %%ymm2, %%ymm2\n\t" "vorpd %%ymm3, %%ymm3, %%ymm3\n\t"
+        "vorpd %%ymm0, %%ymm0, %%ymm0\n\t" "vorpd %%ymm1, %%ymm1, %%ymm1\n\t" "vorpd %%ymm2, %%ymm2, %%ymm2\n\t" "vorpd %%ymm3, %%ymm3, %%ymm3\n\t"
+        "vorpd %%ymm0, %%ymm0, %%ymm0\n\t" "vorpd %%ymm1, %%ymm1, %%ymm1\n\t" "vorpd %%ymm2, %%ymm2, %%ymm2\n\t" "vorpd %%ymm3, %%ymm3, %%ymm3\n\t"
+        "decl %0\n\t"
+        "jnz 1b"
+        : "+r"(loops)
+        :
+        : "ymm0", "ymm1", "ymm2", "ymm3", "cc"
+    );
+}
+
+static void body_vxorpd(uint32_t loops) {
+    __asm__ volatile (
+        "1:\n\t"
+        // 4 independent register chains interleaved 16 times (= 64 total vxorpd instructions)
+        "vxorpd %%ymm0, %%ymm0, %%ymm0\n\t" "vxorpd %%ymm1, %%ymm1, %%ymm1\n\t" "vxorpd %%ymm2, %%ymm2, %%ymm2\n\t" "vxorpd %%ymm3, %%ymm3, %%ymm3\n\t"
+        "vxorpd %%ymm0, %%ymm0, %%ymm0\n\t" "vxorpd %%ymm1, %%ymm1, %%ymm1\n\t" "vxorpd %%ymm2, %%ymm2, %%ymm2\n\t" "vxorpd %%ymm3, %%ymm3, %%ymm3\n\t"
+        "vxorpd %%ymm0, %%ymm0, %%ymm0\n\t" "vxorpd %%ymm1, %%ymm1, %%ymm1\n\t" "vxorpd %%ymm2, %%ymm2, %%ymm2\n\t" "vxorpd %%ymm3, %%ymm3, %%ymm3\n\t"
+        "vxorpd %%ymm0, %%ymm0, %%ymm0\n\t" "vxorpd %%ymm1, %%ymm1, %%ymm1\n\t" "vxorpd %%ymm2, %%ymm2, %%ymm2\n\t" "vxorpd %%ymm3, %%ymm3, %%ymm3\n\t"
+        "vxorpd %%ymm0, %%ymm0, %%ymm0\n\t" "vxorpd %%ymm1, %%ymm1, %%ymm1\n\t" "vxorpd %%ymm2, %%ymm2, %%ymm2\n\t" "vxorpd %%ymm3, %%ymm3, %%ymm3\n\t"
+        "vxorpd %%ymm0, %%ymm0, %%ymm0\n\t" "vxorpd %%ymm1, %%ymm1, %%ymm1\n\t" "vxorpd %%ymm2, %%ymm2, %%ymm2\n\t" "vxorpd %%ymm3, %%ymm3, %%ymm3\n\t"
+        "vxorpd %%ymm0, %%ymm0, %%ymm0\n\t" "vxorpd %%ymm1, %%ymm1, %%ymm1\n\t" "vxorpd %%ymm2, %%ymm2, %%ymm2\n\t" "vxorpd %%ymm3, %%ymm3, %%ymm3\n\t"
+        "vxorpd %%ymm0, %%ymm0, %%ymm0\n\t" "vxorpd %%ymm1, %%ymm1, %%ymm1\n\t" "vxorpd %%ymm2, %%ymm2, %%ymm2\n\t" "vxorpd %%ymm3, %%ymm3, %%ymm3\n\t"
+        "vxorpd %%ymm0, %%ymm0, %%ymm0\n\t" "vxorpd %%ymm1, %%ymm1, %%ymm1\n\t" "vxorpd %%ymm2, %%ymm2, %%ymm2\n\t" "vxorpd %%ymm3, %%ymm3, %%ymm3\n\t"
+        "vxorpd %%ymm0, %%ymm0, %%ymm0\n\t" "vxorpd %%ymm1, %%ymm1, %%ymm1\n\t" "vxorpd %%ymm2, %%ymm2, %%ymm2\n\t" "vxorpd %%ymm3, %%ymm3, %%ymm3\n\t"
+        "vxorpd %%ymm0, %%ymm0, %%ymm0\n\t" "vxorpd %%ymm1, %%ymm1, %%ymm1\n\t" "vxorpd %%ymm2, %%ymm2, %%ymm2\n\t" "vxorpd %%ymm3, %%ymm3, %%ymm3\n\t"
+        "vxorpd %%ymm0, %%ymm0, %%ymm0\n\t" "vxorpd %%ymm1, %%ymm1, %%ymm1\n\t" "vxorpd %%ymm2, %%ymm2, %%ymm2\n\t" "vxorpd %%ymm3, %%ymm3, %%ymm3\n\t"
+        "vxorpd %%ymm0, %%ymm0, %%ymm0\n\t" "vxorpd %%ymm1, %%ymm1, %%ymm1\n\t" "vxorpd %%ymm2, %%ymm2, %%ymm2\n\t" "vxorpd %%ymm3, %%ymm3, %%ymm3\n\t"
+        "vxorpd %%ymm0, %%ymm0, %%ymm0\n\t" "vxorpd %%ymm1, %%ymm1, %%ymm1\n\t" "vxorpd %%ymm2, %%ymm2, %%ymm2\n\t" "vxorpd %%ymm3, %%ymm3, %%ymm3\n\t"
+        "vxorpd %%ymm0, %%ymm0, %%ymm0\n\t" "vxorpd %%ymm1, %%ymm1, %%ymm1\n\t" "vxorpd %%ymm2, %%ymm2, %%ymm2\n\t" "vxorpd %%ymm3, %%ymm3, %%ymm3\n\t"
+        "vxorpd %%ymm0, %%ymm0, %%ymm0\n\t" "vxorpd %%ymm1, %%ymm1, %%ymm1\n\t" "vxorpd %%ymm2, %%ymm2, %%ymm2\n\t" "vxorpd %%ymm3, %%ymm3, %%ymm3\n\t"
+        "decl %0\n\t"
+        "jnz 1b"
+        : "+r"(loops)
+        :
+        : "ymm0", "ymm1", "ymm2", "ymm3", "cc"
+    );
+}
+
 static void body_avx_arith_single_mixed(uint32_t loops) {
     __asm__ volatile (
         // Initialize YMM registers with all-1s pattern via vpcmpeqd
@@ -1040,7 +1159,7 @@ static void body_avx_arith_double_mixed(uint32_t loops) {
     );
 }
 
-static void body_avx_logic_mixed(uint32_t loops) {
+static void body_avx_logic_single_mixed(uint32_t loops) {
     __asm__ volatile (
         // Initialize YMM registers with all-1s pattern via vpcmpeqd
         "vpcmpeqd %%ymm0, %%ymm0, %%ymm0\n\t"
@@ -1065,6 +1184,39 @@ static void body_avx_logic_mixed(uint32_t loops) {
         "vorps %%ymm0, %%ymm0, %%ymm0\n\t"  "vxorps %%ymm1, %%ymm1, %%ymm1\n\t" "vandps %%ymm2, %%ymm2, %%ymm2\n\t" "vorps %%ymm3, %%ymm3, %%ymm3\n\t"
         "vxorps %%ymm0, %%ymm0, %%ymm0\n\t" "vandps %%ymm1, %%ymm1, %%ymm1\n\t" "vorps %%ymm2, %%ymm2, %%ymm2\n\t"  "vxorps %%ymm3, %%ymm3, %%ymm3\n\t"
         "vandps %%ymm0, %%ymm0, %%ymm0\n\t" "vorps %%ymm1, %%ymm1, %%ymm1\n\t" "vxorps %%ymm2, %%ymm2, %%ymm2\n\t" "vandps %%ymm3, %%ymm3, %%ymm3\n\t"
+        "decl %0\n\t"
+        "jnz 1b"
+        : "+r"(loops)
+        :
+        : "ymm0", "ymm1", "ymm2", "ymm3", "cc"
+    );
+}
+
+static void body_avx_logic_double_mixed(uint32_t loops) {
+    __asm__ volatile (
+        // Initialize YMM registers with all-1s pattern via vpcmpeqd
+        "vpcmpeqd %%ymm0, %%ymm0, %%ymm0\n\t"
+        "vpcmpeqd %%ymm1, %%ymm1, %%ymm1\n\t"
+        "vpcmpeqd %%ymm2, %%ymm2, %%ymm2\n\t"
+        "vpcmpeqd %%ymm3, %%ymm3, %%ymm3\n\t"
+        "1:\n\t"
+        // Interleaved double-precision logic operations (AND, OR, XOR) across 4 independent register chains
+        "vandpd %%ymm0, %%ymm0, %%ymm0\n\t" "vorpd %%ymm1, %%ymm1, %%ymm1\n\t" "vxorpd %%ymm2, %%ymm2, %%ymm2\n\t" "vandpd %%ymm3, %%ymm3, %%ymm3\n\t"
+        "vorpd %%ymm0, %%ymm0, %%ymm0\n\t"  "vxorpd %%ymm1, %%ymm1, %%ymm1\n\t" "vandpd %%ymm2, %%ymm2, %%ymm2\n\t" "vorpd %%ymm3, %%ymm3, %%ymm3\n\t"
+        "vxorpd %%ymm0, %%ymm0, %%ymm0\n\t" "vandpd %%ymm1, %%ymm1, %%ymm1\n\t" "vorpd %%ymm2, %%ymm2, %%ymm2\n\t"  "vxorpd %%ymm3, %%ymm3, %%ymm3\n\t"
+        "vandpd %%ymm0, %%ymm0, %%ymm0\n\t" "vorpd %%ymm1, %%ymm1, %%ymm1\n\t" "vxorpd %%ymm2, %%ymm2, %%ymm2\n\t" "vandpd %%ymm3, %%ymm3, %%ymm3\n\t"
+        "vorpd %%ymm0, %%ymm0, %%ymm0\n\t"  "vxorpd %%ymm1, %%ymm1, %%ymm1\n\t" "vandpd %%ymm2, %%ymm2, %%ymm2\n\t" "vorpd %%ymm3, %%ymm3, %%ymm3\n\t"
+        "vxorpd %%ymm0, %%ymm0, %%ymm0\n\t" "vandpd %%ymm1, %%ymm1, %%ymm1\n\t" "vorpd %%ymm2, %%ymm2, %%ymm2\n\t"  "vxorpd %%ymm3, %%ymm3, %%ymm3\n\t"
+        "vandpd %%ymm0, %%ymm0, %%ymm0\n\t" "vorpd %%ymm1, %%ymm1, %%ymm1\n\t" "vxorpd %%ymm2, %%ymm2, %%ymm2\n\t" "vandpd %%ymm3, %%ymm3, %%ymm3\n\t"
+        "vorpd %%ymm0, %%ymm0, %%ymm0\n\t"  "vxorpd %%ymm1, %%ymm1, %%ymm1\n\t" "vandpd %%ymm2, %%ymm2, %%ymm2\n\t" "vorpd %%ymm3, %%ymm3, %%ymm3\n\t"
+        "vxorpd %%ymm0, %%ymm0, %%ymm0\n\t" "vandpd %%ymm1, %%ymm1, %%ymm1\n\t" "vorpd %%ymm2, %%ymm2, %%ymm2\n\t"  "vxorpd %%ymm3, %%ymm3, %%ymm3\n\t"
+        "vandpd %%ymm0, %%ymm0, %%ymm0\n\t" "vorpd %%ymm1, %%ymm1, %%ymm1\n\t" "vxorpd %%ymm2, %%ymm2, %%ymm2\n\t" "vandpd %%ymm3, %%ymm3, %%ymm3\n\t"
+        "vorpd %%ymm0, %%ymm0, %%ymm0\n\t"  "vxorpd %%ymm1, %%ymm1, %%ymm1\n\t" "vandpd %%ymm2, %%ymm2, %%ymm2\n\t" "vorpd %%ymm3, %%ymm3, %%ymm3\n\t"
+        "vxorpd %%ymm0, %%ymm0, %%ymm0\n\t" "vandpd %%ymm1, %%ymm1, %%ymm1\n\t" "vorpd %%ymm2, %%ymm2, %%ymm2\n\t"  "vxorpd %%ymm3, %%ymm3, %%ymm3\n\t"
+        "vandpd %%ymm0, %%ymm0, %%ymm0\n\t" "vorpd %%ymm1, %%ymm1, %%ymm1\n\t" "vxorpd %%ymm2, %%ymm2, %%ymm2\n\t" "vandpd %%ymm3, %%ymm3, %%ymm3\n\t"
+        "vorpd %%ymm0, %%ymm0, %%ymm0\n\t"  "vxorpd %%ymm1, %%ymm1, %%ymm1\n\t" "vandpd %%ymm2, %%ymm2, %%ymm2\n\t" "vorpd %%ymm3, %%ymm3, %%ymm3\n\t"
+        "vxorpd %%ymm0, %%ymm0, %%ymm0\n\t" "vandpd %%ymm1, %%ymm1, %%ymm1\n\t" "vorpd %%ymm2, %%ymm2, %%ymm2\n\t"  "vxorpd %%ymm3, %%ymm3, %%ymm3\n\t"
+        "vandpd %%ymm0, %%ymm0, %%ymm0\n\t" "vorpd %%ymm1, %%ymm1, %%ymm1\n\t" "vxorpd %%ymm2, %%ymm2, %%ymm2\n\t" "vandpd %%ymm3, %%ymm3, %%ymm3\n\t"
         "decl %0\n\t"
         "jnz 1b"
         : "+r"(loops)

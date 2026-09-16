@@ -1,5 +1,5 @@
 #include <stdint.h>
-#include "tests.h"
+#include "benchmarks.h"
 
 // Software 64-bit division fallback for freestanding binaries
 uint64_t __udivdi3(uint64_t n, uint64_t d) {
@@ -121,48 +121,6 @@ static inline uint64_t rdtsc_end(void) {
 #define UNROLL_FACTOR  64ULL
 #define OUTER_LOOPS    1000000ULL
 #define TRIAL_COUNT    20
-
-typedef void (*BenchBody)(uint32_t loops);
-
-typedef struct {
-    const char* label;
-    BenchBody body;
-} BenchmarkItem;
-
-static const BenchmarkItem BENCHMARKS[] = {
-    { "NOP", body_nop },
-    { "ADD", body_add },
-    { "SUB", body_sub },
-    { "INC", body_inc },
-    { "DEC", body_dec },
-    { "IMUL", body_imul },
-    { "FMUL (x87)", body_fmul },
-    { "AND", body_and },
-    { "OR", body_or },
-    { "XOR", body_xor },
-    { "SHL", body_shl },
-    { "SHR", body_shr },
-    { "Arithmetic Mixed", body_arithmetic_mixed },
-    { "Logic Mixed", body_logic_mixed },
-    //{ "ADDPS (SSE)", body_sse_add_single },
-    //{ "MULPS (SSE)", body_sse_mul_single },
-    //{ "ADDPD (SSE)", body_sse_add_double },
-    //{ "MULPD (SSE)", body_sse_mul_double },
-    //{ "ANDPS (SSE)", body_sse_logic_and },
-    //{ "ORPS (SSE)", body_sse_logic_or },
-    //{ "XORPS (SSE)", body_sse_logic_xor },
-    { "VADDPS (AVX)", body_vaddps },
-    { "VADDPD (AVX)", body_vaddpd },
-    { "VMULPS (AVX)", body_vmulps },
-    { "VMULPD (AVX)", body_vmulpd },
-    { "VANDPS (AVX)", body_vandps },
-    { "VORPS (AVX)", body_vorps },
-    { "VXORPS (AVX)", body_vxorps },
-    { "AVX Arithmetic Single Mixed", body_avx_arith_single_mixed },
-    { "AVX Arithmetic Double Mixed", body_avx_arith_double_mixed },
-    { "AVX Logic Mixed", body_avx_logic_mixed }
-};
-#define BENCHMARK_COUNT (sizeof(BENCHMARKS) / sizeof(BENCHMARKS[0]))
 
 static uint64_t measure_cycles_per_instruction_fixed(BenchBody body, uint64_t outer_loops) {
     __asm__ volatile("cli");

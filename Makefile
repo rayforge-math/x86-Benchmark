@@ -9,7 +9,7 @@ BUILDDIR = build
 DEP_FLAGS = -MMD -MP
 INCLUDES  = -I$(INCDIR)
 CFLAGS    = -m32 -mavx -ffreestanding -fno-pie -fno-builtin -nostdlib -O2 -Wall -Wextra $(INCLUDES) $(DEP_FLAGS)
-LDFLAGS   = -m elf_i386 -nostdlib --oformat binary -Ttext 0x1000 -e _start
+LDFLAGS   = -m elf_i386 -nostdlib --oformat binary -Ttext 0x10000 -e _start
 
 IMAGE      = $(BUILDDIR)/disk.img
 BOOT_SRC   = $(SRCDIR)/boot.asm

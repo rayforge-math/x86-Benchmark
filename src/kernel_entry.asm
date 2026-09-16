@@ -1,83 +1,150 @@
-BITS 32
+; ==============================================================================
+; PROJECT: 32-bit Protected Mode Kernel Stub (Loaded at 0x10000)
+; FEATURE: Real-time visual progress output to the VGA text mode buffer
+; ==============================================================================
+
+[BITS 32]
 
 section .data
-msg_text    db "Starting kernel ...", 0
+msg_start   db "Starting kernel ...", 0
+msg_fpu     db "Initializing FPU & SSE ...", 0
+msg_idt     db "Setting up IDT and gates ...", 0
+msg_pic     db "Remapping Master/Slave PIC ...", 0
+msg_pit     db "Configuring PIT timer (100 Hz) ...", 0
+msg_jump    db "Jumping to C kmain() ...", 0
 
 align 8
 idtr:
-    dw (256 * 8) - 1
-    dd idt
+    dw (256 * 8) - 1                ; IDT limit (size - 1)
+    dd idt                          ; IDT base linear address
 
 section .bss
 align 16
 stack_bottom:
-    resb 16384
+    resb 16384                      ; 16 KB kernel stack space
 stack_top:
 
 align 8
 idt:
-    resb 256 * 8
+    resb 256 * 8                    ; Space for 256 interrupt descriptors (8 bytes each)
 
 ticks:
-    resd 1
+    resd 1                          ; System tick counter
 
 section .text
 global _start
 extern kmain
 
 _start:
-    cli 
+    cli                             ; Clear interrupts during core setup
 
-    ; Segment registers reload
-    mov ax, 0x10
+    ; --------------------------------------------------------------------------
+    ; Step 1: Reload Segment Registers and Initialize Stack
+    ; --------------------------------------------------------------------------
+    mov ax, 0x10                    ; Selector 0x10 is our 32-bit flat data descriptor
     mov ds, ax
     mov es, ax
     mov fs, ax
     mov gs, ax
     mov ss, ax
-    mov esp, stack_top
+    mov esp, stack_top              ; Set up kernel stack pointer
 
     ; 16-byte stack alignment check/force for SSE safety
     and esp, -16
 
-    ; Clear VGA text mode screen (80x25 cells)
+    ; --------------------------------------------------------------------------
+    ; Step 2: Clear Screen and Print Initial Boot Message (Row 0)
+    ; --------------------------------------------------------------------------
     cld
-    mov edi, 0xB8000
-    mov ecx, 2000
-    mov ax, 0x0F20
-    rep stosw
+    mov edi, 0xB8000                ; VGA text mode buffer base address
+    mov ecx, 2000                   ; 80 * 25 cells = 2000 words
+    mov ax, 0x0F20                  ; Attribute: White on black (0x0F), Space char (0x20)
+    rep stosw                       ; Clear entire screen
 
-    ; Direct VGA output for "Starting kernel ..." at top-left (0xB8000)
-    mov edi, 0xB8000
-    mov ecx, 19
-    mov ebx, msg_text
-.print_loop:
-    mov al, [ebx]
-    mov byte [edi], al
-    mov byte [edi+1], 0x0F
-    inc ebx
-    add edi, 2
-    dec ecx
-    jnz .print_loop
+    ; Print "Starting kernel ..." at row 0, column 0 (0xB8000)
+    mov esi, msg_start
+    xor ebx, ebx                    ; Row 0
+    call print_row
 
-    ; Initialize FPU and SSE / FXSAVE support
+    ; --------------------------------------------------------------------------
+    ; Step 3: Subsystem Initializations with Live Screen Updates
+    ; --------------------------------------------------------------------------
+    
+    ; --- FPU & SSE ---
+    mov esi, msg_fpu
+    mov ebx, 1                      ; Row 1
+    call print_row
     call init_fpu_sse
 
-    ; Initialize IDT, PIC remap, and PIT
+    ; --- IDT ---
+    mov esi, msg_idt
+    mov ebx, 2                      ; Row 2
+    call print_row
     call init_idt
+
+    ; --- PIC ---
+    mov esi, msg_pic
+    mov ebx, 3                      ; Row 3
+    call print_row
     call remap_pic
+
+    ; --- PIT ---
+    mov esi, msg_pit
+    mov ebx, 4                      ; Row 4
+    call print_row
     call init_pit
 
-    sti                            ; Enable hardware interrupts
+    ; --- Jump to C Kernel ---
+    mov esi, msg_jump
+    mov ebx, 5                      ; Row 5
+    call print_row
 
-    call kmain                     ; Jump to C kernel entry point
+    sti                             ; Enable hardware interrupts safely now
+    call kmain                      ; Jump to C kernel entry point
 
 .hang:
     cli
     hlt
     jmp .hang
 
-; --- FPU & SSE Initialization (32-bit x86) ---
+; ==============================================================================
+; Helper Function: Print a null-terminated string to a specific screen row
+; Inputs: ESI = pointer to string, EBX = row number (0 to 24)
+; ==============================================================================
+print_row:
+    push eax
+    push ecx
+    push edx
+    push edi
+    push ebx
+
+    ; Calculate VGA memory address for row: 0xB8000 + (row * 80 * 2)
+    mov edi, 0xB8000
+    mov eax, ebx
+    imul eax, eax, 160              ; 80 characters * 2 bytes per cell = 160 bytes per row
+    add edi, eax                    ; EDI now points to the target row start
+
+.print_char_loop:
+    mov al, [esi]                   ; Load character from string
+    test al, al                     ; Check for null terminator (0)
+    jz .print_done                  
+    mov byte [edi], al              ; Write character ASCII byte
+    mov byte [edi+1], 0x0F          ; Write attribute byte: Bright white on black (0x0F)
+    inc esi                         ; Next character in string
+    add edi, 2                      ; Next cell in video memory
+    jmp .print_char_loop
+
+.print_done:
+    pop ebx
+    pop edi
+    pop edx
+    pop ecx
+    pop eax
+    ret
+
+; ==============================================================================
+; FPU & SSE Initialization (32-bit x86)
+; ==============================================================================
 init_fpu_sse:
     push eax
     push ecx
@@ -89,7 +156,7 @@ init_fpu_sse:
     or  eax,  (1 << 1) | (1 << 5)
     mov cr0, eax
 
-    ; CPUID check: Prüfe ob AVX (ECX Bit 28) unterstützt wird
+    ; CPUID check: Check if AVX (ECX Bit 28) is supported
     mov eax, 1
     cpuid
     test ecx, (1 << 28)
@@ -100,7 +167,7 @@ init_fpu_sse:
     or  eax,  (1 << 9) | (1 << 10) | (1 << 18)
     mov cr4, eax
 
-    ; XCR0 konfigurieren: Bits 0/1 (x87/SSE) und Bit 2 (YMM) freigeben (0x7)
+    ; Configure XCR0: enable bits 0/1 (x87/SSE) and bit 2 (YMM) -> 0x7
     xor ecx, ecx
     xgetbv
     or eax, 0x07
@@ -108,7 +175,7 @@ init_fpu_sse:
     jmp .fpu_done
 
 .no_avx:
-    ; Fallback: nur SSE/FXSR (ohne AVX/YMM)
+    ; Fallback: only SSE/FXSR enabled (without AVX/YMM)
     mov eax, cr4
     or  eax,  (1 << 9) | (1 << 10)
     mov cr4, eax
@@ -120,51 +187,55 @@ init_fpu_sse:
     pop eax
     ret
 
-; --- IDT Setup ---
+; ==============================================================================
+; IDT Setup (Fixed 8-Byte Descriptor Construction)
+; ==============================================================================
 init_idt:
     push edi
     push ecx
-    push edx
     push eax
 
-    mov edi, idt
-    mov ecx, 256
-    mov eax, unhandled_int
+    mov edi, idt                    ; Destination pointer to IDT base
+    mov ecx, 256                    ; Loop counter for all 256 interrupt vectors
+    mov eax, unhandled_int          ; Default handler function pointer
 
-    ; Populate all 256 gates with default unhandled_int handler
 .fill_idt:
-    mov edx, eax
-    shr edx, 16
-    shl edx, 16
-    or edx, 0x00008E00            ; Present, ring 0, 32-bit interrupt gate
-
-    mov bx, 0x08                    ; Code selector offset
-    shl ebx, 16
-    mov bx, ax
-
-    mov [edi], bx
+    ; Build each 8-byte IDT descriptor cleanly:
+    ; Bytes 0-1: Offset low (bits 0-15)
+    mov [edi], ax
+    
+    ; Bytes 2-3: Code segment selector (0x08)
     mov word [edi+2], 0x08
+
+    ; Byte 4: Reserved (must be 0)
     mov byte [edi+4], 0
+
+    ; Byte 5: Type and attributes (Present, ring 0, 32-bit interrupt gate = 0x8E)
     mov byte [edi+5], 0x8E
-    mov dx, ax
+
+    ; Bytes 6-7: Offset high (bits 16-31)
+    push eax
     shr eax, 16
     mov [edi+6], ax
-    mov eax, unhandled_int
+    pop eax
 
-    add edi, 8
+    add edi, 8                      ; Advance to next 8-byte descriptor entry
     dec ecx
     jnz .fill_idt
 
-    ; Override vector 0x20 (IRQ0 / PIT)
+    ; Override vector 0x20 (IRQ0 / PIT timer interrupt) with specific handler
     mov edi, idt + (0x20 * 8)
     mov eax, timer_handler
+    
     mov [edi], ax
+    mov word [edi+2], 0x08
+    mov byte [edi+4], 0
+    mov byte [edi+5], 0x8E
     shr eax, 16
     mov [edi+6], ax
 
-    lidt [idtr]
+    lidt [idtr]                     ; Load IDTR with base and limit
     pop eax
-    pop edx
     pop ecx
     pop edi
     ret
@@ -172,28 +243,30 @@ init_idt:
 unhandled_int:
     iret
 
-; --- PIC Remapping (Master 0x20-0x27, Slave 0x28-0x2F) ---
+; ==============================================================================
+; PIC Remapping (Master to 0x20-0x27, Slave to 0x28-0x2F)
+; ==============================================================================
 remap_pic:
     push ax
-    mov al, 0x11
+    mov al, 0x11                    ; Initialization command (ICW1)
     out 0x20, al
     out 0xA0, al
 
-    mov al, 0x20                    ; Master offset
+    mov al, 0x20                    ; Master PIC vector offset (0x20)
     out 0x21, al
-    mov al, 0x28                    ; Slave offset
+    mov al, 0x28                    ; Slave PIC vector offset (0x28)
     out 0xA1, al
 
-    mov al, 0x04
+    mov al, 0x04                    ; Tell Master about Slave at IRQ2 (ICW3)
     out 0x21, al
-    mov al, 0x02
+    mov al, 0x02                    ; Tell Slave its cascade identity (ICW3)
     out 0xA1, al
 
-    mov al, 0x01
+    mov al, 0x01                    ; 8086 mode environment (ICW4)
     out 0x21, al
     out 0xA1, al
 
-    ; Unmask only IRQ0 (timer) on master PIC (11111110b = 0xFE)
+    ; Unmask only IRQ0 (timer) on master PIC (11111110b = 0xFE), mask others
     mov al, 0xFE
     out 0x21, al
     mov al, 0xFF
@@ -202,26 +275,30 @@ remap_pic:
     pop ax
     ret
 
-; --- PIT Configuration (~100 Hz, Channel 0, Mode 3) ---
+; ==============================================================================
+; PIT Configuration (~100 Hz, Channel 0, Mode 3 Rate Generator)
+; ==============================================================================
 init_pit:
     push ax
-    mov al, 0x36
+    mov al, 0x36                    ; Channel 0, Binary mode, Mode 3, LSB/MSB
     out 0x43, al
     mov ax, 11932                   ; 1193180 Hz / 100 Hz = 11932 (0x2E9C)
-    out 0x40, al
+    out 0x40, al                    ; Send low byte
     mov al, ah
-    out 0x40, al
+    out 0x40, al                    ; Send high byte
     pop ax
     ret
 
-; --- IRQ0 Timer Handler ---
+; ==============================================================================
+; IRQ0 Timer Interrupt Handler
+; ==============================================================================
 timer_handler:
-    pushad
-    inc dword [ticks]               ; Increment tick counter in memory
+    pushad                          ; Save all general-purpose registers
+    inc dword [ticks]               ; Increment system tick counter in memory
 
-    ; Send End-Of-Interrupt (EOI) to Master PIC
+    ; Send End-Of-Interrupt (EOI) signal to Master PIC
     mov al, 0x20
     out 0x20, al
 
-    popad
-    iret
+    popad                           ; Restore general-purpose registers
+    iret                            ; Return from interrupt
